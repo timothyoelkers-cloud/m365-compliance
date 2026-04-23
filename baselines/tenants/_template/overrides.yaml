@@ -1,0 +1,41 @@
+# Tenant-specific overrides.
+# Applied as the highest-precedence layer in baseline resolution.
+# Use sparingly — an override means this tenant deviates from standard profiles.
+# Every override should have a reason and (where temporary) an expiry.
+#
+# Shape mirrors baseline.schema.json — include only the sections you're overriding.
+
+version: 1.0.0
+metadata:
+  name:        "overrides"
+  kind:        tenant-overrides
+  description: "Per-tenant deviations from standard profiles. Kept minimal."
+
+# ---------------------------------------------------------------------------
+# Example: add an allowed federation domain for this specific tenant
+# ---------------------------------------------------------------------------
+# teams:
+#   federation:
+#     allowed_domains:
+#       - partner-specific.example.com
+
+# ---------------------------------------------------------------------------
+# Example: bump OS minimum version ahead of fleet baseline (tenant has a pilot
+# for the newer build).
+# ---------------------------------------------------------------------------
+# intune:
+#   compliance_policies:
+#     - id: comp-win-baseline
+#       os_minimum_version: "10.0.22631.0"
+
+# ---------------------------------------------------------------------------
+# Documented deviations (tenant-class exceptions, time-limited carve-outs).
+# ---------------------------------------------------------------------------
+deviations: []
+# - baseline_control_id: m365.exchange.safe-attachments
+#   baseline_id:         tr-external-sender-banner
+#   deviation:           "Disabled for 30 days during mail migration"
+#   justification:       "Legacy tenant being consolidated; transport rule causes duplicate banners"
+#   owner:               "alice@corp.example"
+#   expiry:              "2026-05-15"
+#   approved_by:         "security-lead@corp.example"

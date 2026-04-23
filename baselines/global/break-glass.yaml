@@ -1,0 +1,29 @@
+version: 0.1.0
+metadata:
+  name: break-glass-reference
+  kind: global-defaults
+  description: |
+    Declarative reference for break-glass account posture. Actual
+    credentials are out-of-band and never in a baseline file.
+    Agents use this to verify that CA policy exclusion groups
+    align with the tenant's documented break-glass model.
+
+break_glass:
+  standard_group_id: grp-ca-break-glass
+  expected_member_count: 2
+  member_properties:
+    - mfa_enforced_by_dedicated_fido2_token: true
+    - password_complexity: 30+ chars
+    - stored_in_physical_safe: true
+    - rotation_cadence_days: 365
+  exclusions_allowed_in:
+    - All Conditional Access user-blocking policies (must be excluded)
+  monitoring_required:
+    - Any sign-in by a break-glass account pages on-call within 5 minutes
+    - Any modification of the break-glass CA exclusion group raises a P1 alert
+    - Any modification of break-glass account attributes raises a P1 alert
+  quarterly_verification:
+    - Break-glass sign-in dry-run (planned, recorded) at least once a quarter
+    - Member count verified
+    - MFA token status verified
+    - Safe location verified

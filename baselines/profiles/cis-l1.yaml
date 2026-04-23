@@ -1,0 +1,489 @@
+version: 1.0.0
+metadata:
+  name: cis-l1
+  kind: profile
+  description: |
+    CIS Microsoft 365 Foundations Benchmark v6.0.1 — Level 1 profile.
+    Prescriptive minimum-viable hardening. Safe for broad (ring 2) rollout
+    once the pilot ring has proved clean. Source IDs reference controls.md
+    in the cis-m365 framework skill.
+
+rollout:
+  rings: [0, 1, 2, 3]
+  notes: Canary-proven; broad rollout cleared for generic tenants.
+
+entra:
+  # 5.2.3.5 — weak authentication methods disabled
+  authentication_methods_policy:
+    fido2:                        { state: enabled,  feature_settings: { is_attestation_enforced: true } }
+    windows_hello_for_business:   { state: enabled }
+    microsoft_authenticator:      { state: enabled,  feature_settings: { number_matching: required, geographic_context: required } }   # 5.2.3.1
+    temporary_access_pass:        { state: enabled,  feature_settings: { default_lifetime_minutes: 60, default_length: 8, is_usable_once: true } }
+    x509_certificate:             { state: enabled }
+    sms:                          { state: disabled }   # 5.2.3.5
+    voice:                        { state: disabled }   # 5.2.3.5
+    email:                        { state: disabled }   # 5.2.3.7
+    system_preferred_mfa:         enabled               # 5.2.3.6
+
+  # 5.2.3.2, 5.2.3.3 — password protection
+  password_protection:
+    custom_banned_passwords: true
+    enforce_on_prem: true                # 5.2.3.3 when hybrid
+    smart_lockout_threshold: 10
+    smart_lockout_duration_seconds: 60
+
+  # 1.3.1 — never expire (per current Microsoft guidance, combined with MFA)
+  password_policy:
+    never_expire: true
+
+  # 5.2.4.1 — SSPR for all
+  self_service_password_reset:
+    enabled_for: all
+
+  authorization_policy:
+    # 5.1.2.3 — restrict non-admin tenant creation
+    default_user_role_permissions:
+      allowed_to_create_tenants: false
+      # 5.1.3.2 — users cannot create security groups
+      allowed_to_create_security_groups: false
+      # 5.1.5.2 — admin consent workflow (configured below)
+      # 5.1.2.1 pointer: per-user MFA is disabled because CA-based MFA is enforced
+    # 5.1.6.2 — guest user access restricted
+    guest_user_role_id: '2af84b1e-32c8-42b7-82bc-daa82404023b'  # Guest User (restricted)
+    # 5.1.6.3 — guest invitations limited to Guest Inviter role
+    allow_invites_from: adminsAndGuestInviters
+    # 1.3.4 — user owned apps/services restricted (app and service creation)
+    # implemented via app governance below
+    block_msol_powershell: true
+
+  # 5.1.5.1 — user consent disabled; 5.1.5.2 — admin consent workflow enabled
+  admin_consent_workflow:
+    enabled: true
+    notify_reviewers: true
+    reminders_enabled: true
+    request_duration_days: 30
+    reviewers_group: grp-app-consent-approvers
+
+  # 5.2.2.3 — block legacy auth; 5.2.2.2 — MFA for all; 5.2.2.1 — MFA for admins;
+  # 5.2.2.5 — phishing-resistant MFA for admins (L2 but already here for defence-in-depth);
+  # 5.2.2.6 — user risk policy; 5.2.2.7 — sign-in risk policy;
+  # 5.2.2.9 — managed device for auth; 5.2.2.10 — managed device for MFA registration;
+  # 5.2.2.11 — sign-in frequency for Intune enrollment; 5.2.2.12 — block device code flow.
+  authentication_strengths:
+    - id: phishing-resistant-mfa
+      displayName: Phishing-resistant MFA
+      allowedCombinations: [fido2, windowsHelloForBusiness, x509CertificateMultiFactor]
+
+  conditional_access_policies:
+    - id: cis-l1-ca-001-block-legacy-auth
+      displayName: 'CIS L1 — Block legacy authentication'
+      state: enabled
+      conditions:
+        users:       { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications:{ include: ['All'] }
+        clientAppTypes: [exchangeActiveSync, other]
+      grantControls: { operator: OR, builtInControls: [block] }
+
+    - id: cis-l1-ca-002-mfa-all-users
+      displayName: 'CIS L1 — Require MFA for all users'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['All'] }
+        clientAppTypes: [all]
+      grantControls: { operator: AND, authenticationStrength: phishing-resistant-mfa }
+
+    - id: cis-l1-ca-003-admin-mfa-phishing-resistant
+      displayName: 'CIS L1 — Phishing-resistant MFA for admins'
+      state: enabled
+      conditions:
+        users:
+          include_roles:
+            - Global Administrator
+            - Privileged Role Administrator
+            - User Administrator
+            - SharePoint Administrator
+            - Exchange Administrator
+            - Conditional Access Administrator
+            - Security Administrator
+            - Helpdesk Administrator
+            - Billing Administrator
+            - Application Administrator
+            - Authentication Administrator
+          exclude_groups: [grp-ca-break-glass]
+        applications: { include: ['All'] }
+      grantControls: { operator: AND, authenticationStrength: phishing-resistant-mfa }
+
+    - id: cis-l1-ca-004-block-high-sign-in-risk
+      displayName: 'CIS L1 — Block high sign-in risk'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['All'] }
+        signInRiskLevels: [high]
+      grantControls: { operator: OR, builtInControls: [block] }
+
+    - id: cis-l1-ca-005-password-change-high-user-risk
+      displayName: 'CIS L1 — Force password change on high user risk'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['All'] }
+        userRiskLevels: [high]
+      grantControls: { operator: AND, builtInControls: [passwordChange, mfa] }
+
+    - id: cis-l1-ca-006-require-compliant-device
+      displayName: 'CIS L1 — Require compliant or hybrid-joined device'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass, grp-ca-non-corp-device-exempt] }
+        applications: { include: ['All'] }
+      grantControls: { operator: OR, builtInControls: [compliantDevice, domainJoinedDevice] }
+
+    - id: cis-l1-ca-007-managed-device-for-mfa-registration
+      displayName: 'CIS L1 — Managed device required for MFA registration'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include_user_actions: ['urn:user:registersecurityinfo'] }
+      grantControls: { operator: OR, builtInControls: [compliantDevice, domainJoinedDevice] }
+
+    - id: cis-l1-ca-008-block-device-code-flow
+      displayName: 'CIS L1 — Block device code sign-in flow'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass, grp-ca-device-code-exempt] }
+        applications: { include: ['All'] }
+        authentication_flows: [deviceCodeFlow]
+      grantControls: { operator: OR, builtInControls: [block] }
+
+    - id: cis-l1-ca-009-admin-sign-in-frequency
+      displayName: 'CIS L1 — Admin sign-in frequency 4h, non-persistent browser'
+      state: enabled
+      conditions:
+        users:
+          include_roles: [Global Administrator, Privileged Role Administrator, Security Administrator, Exchange Administrator, SharePoint Administrator, Conditional Access Administrator, Application Administrator, User Administrator, Helpdesk Administrator]
+          exclude_groups: [grp-ca-break-glass]
+        applications: { include: ['All'] }
+      sessionControls:
+        signInFrequency:   { value: 4, type: hours, isEnabled: true }
+        persistentBrowser: { mode: never, isEnabled: true }
+
+  # 5.3.1 — PIM to manage roles; 5.3.4/5.3.5 — approval for GA and Privileged Role Admin
+  pim:
+    role_settings:
+      - role: Global Administrator
+        activation_max_duration_hours: 2
+        require_mfa_on_activation: true
+        require_justification: true
+        require_approval: true
+        approvers: [grp-pim-approvers]
+      - role: Privileged Role Administrator
+        activation_max_duration_hours: 2
+        require_mfa_on_activation: true
+        require_justification: true
+        require_approval: true
+        approvers: [grp-pim-approvers]
+      - role: Security Administrator
+        activation_max_duration_hours: 4
+        require_mfa_on_activation: true
+        require_justification: true
+      - role: Exchange Administrator
+        activation_max_duration_hours: 4
+        require_mfa_on_activation: true
+        require_justification: true
+      - role: SharePoint Administrator
+        activation_max_duration_hours: 4
+        require_mfa_on_activation: true
+        require_justification: true
+
+  # 5.3.2 — access reviews for guests; 5.3.3 — access reviews for privileged roles
+  access_reviews:
+    - id: ar-privileged-roles-quarterly
+      scope: privileged_roles
+      cadence: quarterly
+      reviewers: [grp-access-review-reviewers]
+      auto_apply: true
+    - id: ar-guest-users-quarterly
+      scope: guests
+      cadence: quarterly
+      reviewers: [grp-access-review-reviewers]
+      auto_apply: true
+
+  # 1.1.2 — break-glass accounts defined; 2.2.1 — break-glass activity monitored
+  break_glass:
+    group_id: grp-ca-break-glass
+    member_count_expected: 2
+    monitoring_alerts:
+      - alert-bg-signin-any
+      - alert-bg-mfa-exclusion-change
+      - alert-bg-member-change
+
+  # 1.1.3 — Global Admin count 2..4
+  admin_accounts_policy:
+    global_admin_min: 2
+    global_admin_max: 4
+    cloud_only_required: true    # 1.1.1
+
+exchange:
+  # 6.5.4 — SMTP AUTH disabled
+  smtp_auth_disabled_tenant_wide: true
+  # 6.5.1 — modern auth
+  modern_auth_required: true
+  # 6.2.1 — all forms of forwarding blocked (outbound spam policy)
+  outbound_spam:
+    auto_forwarding_mode: Off
+    recipient_limit_external_per_hour: 400
+    recipient_limit_internal_per_hour: 800
+    recipient_limit_per_day: 800
+    action_when_threshold_reached: BlockUser
+    notify_admins_on_outbound_spam: true
+    notify_admin_recipients: [security-admins@corp.example]
+  # 2.1.8 / 2.1.9 / 2.1.10 — SPF / DKIM / DMARC
+  dkim:
+    enable_for_all_accepted_domains: true
+  # 2.1.13 / 2.1.12 — connection filter hygiene
+  connection_filter:
+    disable_safe_list: true
+    ip_allow_list: []
+  # 2.1.14 — inbound anti-spam policies do not contain allowed_domains
+  anti_spam_inbound:
+    preset: Strict
+    allowed_domains: []
+    allowed_senders: []
+  # 2.1.15 — outbound spam limits — covered by outbound_spam above
+  # 2.1.2 / 2.1.7 — anti-malware / anti-phish policies via Preset Strict
+  mdo_preset:
+    apply_to_all_users: true
+    exclude_groups: []
+  # 2.4.1 / 2.4.2 — priority account protection
+  priority_account_protection:
+    enabled: true
+    members_group: grp-priority-accounts
+    preset: Strict
+  # 6.1.1 — AuditDisabled = false; 6.1.2 — mailbox audit actions; 6.1.3 — AuditBypassEnabled
+  mailbox_audit:
+    tenant_default_enabled: true
+    audit_actions_owner:     [Create, HardDelete, MailboxLogin, Move, MoveToDeletedItems, SoftDelete, Update, UpdateFolderPermissions, UpdateCalendarDelegation, UpdateInboxRules, ApplyRecord]
+    audit_actions_delegate:  [Create, HardDelete, MoveToDeletedItems, SendAs, SendOnBehalf, SoftDelete, Update, UpdateFolderPermissions, UpdateInboxRules, ApplyRecord]
+    audit_actions_admin:     [Copy, Create, HardDelete, Move, MoveToDeletedItems, SendAs, SendOnBehalf, SoftDelete, Update, UpdateCalendarDelegation, UpdateFolderPermissions, UpdateInboxRules, ApplyRecord]
+    audit_bypass_enabled: false
+  # 6.2.3 — external sender banner
+  transport_rules:
+    - id: tr-external-sender-banner
+      enabled: true
+      from_scope: NotInOrganization
+      sent_to_scope: InOrganization
+      action: prepend_disclaimer
+      disclaimer_html: >
+        <div style="background:#fff4ce;border-left:4px solid #e7a800;padding:8px;">
+        <strong>CAUTION:</strong> This email originated outside the organisation. Do not click links or open attachments unless you recognise the sender and know the content is safe.
+        </div>
+      fallback_action: Wrap
+  # 6.2.2 — transport rules do not whitelist specific domains (invariant)
+  transport_rule_invariants:
+    no_spam_bypass_without_approval: true
+  # 6.3.1 — Outlook add-ins
+  outlook_addins_user_install: false
+  # 6.5.2 — MailTips enabled
+  mailtips:
+    enabled: true
+    large_audience_threshold: 25
+  # 6.5.3 — additional storage providers restricted in OWA
+  owa_additional_storage_providers: false
+  # 6.5.5 — Direct Send submissions rejected (where relevant)
+  reject_direct_send: true
+
+sharepoint:
+  # 7.2.3 / 7.2.6 — external content sharing restricted
+  sharing_capability: ExternalUserSharingOnly
+  # 7.2.11 — default link permission
+  default_sharing_link_type: Direct
+  default_link_permission: View
+  # 7.2.9 — guest access expires
+  external_user_expiration_required: true
+  external_user_expire_in_days: 60
+  require_anonymous_links_expire_in_days: 30
+  # 7.2.5 — guests cannot re-share
+  prevent_external_users_from_resharing: true
+  # 7.2.1 — modern auth for SharePoint required (legacy auth off)
+  legacy_auth_protocols_enabled: false
+  # 7.3.1 — block download of infected files
+  disallow_infected_file_download: true
+  # 7.2.7 — link sharing restricted (tenant default)
+  default_sharing_link_scope: SpecificPeople
+  # 7.2.2 — SPO/OneDrive Azure AD B2B integration enabled
+  azure_ad_b2b_integration: true
+  # 7.2.10 — reauth with verification code restricted
+  email_attestation_required: true
+  email_attestation_re_auth_days: 15
+
+  onedrive:
+    sharing_capability: ExternalUserSharingOnly
+    orphaned_personal_sites_retention_days: 60
+
+teams:
+  federation:
+    # 8.2.1 — external domains restricted
+    allowed_domains_as_allow_list: true
+    allowed_domains: []    # customer populates tenant override
+    # 8.2.2 — unmanaged Teams users disabled
+    allow_teams_consumer: false
+    # 8.2.3 — external users cannot initiate; 8.2.4 — block accounts in trial tenants
+    restrict_teams_consumer_to_external_user_profiles: true
+    treat_discovered_partners_as_unverified: true
+
+  meeting_policy_global:
+    # 8.5.1 — anonymous users cannot join
+    allow_anonymous_users_to_join_meeting: false
+    # 8.5.2 — anonymous and dial-in cannot start
+    allow_anonymous_users_to_start_meeting: false
+    # 8.5.3 — only people in org bypass lobby
+    auto_admitted_users: EveryoneInCompanyExcludingGuests
+    # 8.5.4 — dial-in stays in lobby
+    allow_pstn_users_to_bypass_lobby: false
+    # 8.5.5 — meeting chat no anonymous
+    meeting_chat_enabled_type: enabledExceptAnonymous
+    # 8.5.7 — external participants cannot give/request control
+    allow_external_participant_give_request_control: false
+
+  messaging_policy_global:
+    # 8.1.2 — users can't email to channel email
+    # (applies via Teams client configuration)
+    allow_url_previews: true
+
+  client_configuration:
+    allow_email_into_channel: false
+
+  app_permission_global:
+    # 8.4.1 — app permission policies configured
+    default_catalog_apps_type: AllowedAppList
+    global_catalog_apps_type:  AllowedAppList
+    private_catalog_apps_type: BlockedAppList
+    default_catalog_apps: []
+    global_catalog_apps: []
+
+  channels_policy_global:
+    allow_channel_sharing_to_external_user: false
+
+  user_safety:
+    # 8.6.1 — users can report security concerns
+    allow_security_reporting: true
+
+  # 8.1.1 — external file sharing in Teams for approved services only
+  external_file_sharing:
+    approved_services: [SharePoint, OneDrive]
+
+purview:
+  # 3.1.1 — audit log search enabled
+  unified_audit_log_enabled: true
+  audit_retention_days: 180   # E3 default; E5 can push to 365+
+  # 3.2.1 — DLP policies enabled (general); 3.2.2 — DLP for Teams
+  dlp_policies:
+    - id: dlp-general-starter
+      mode: test_with_notifications
+      scope: [exchange, sharepoint, onedrive, teams, endpoint]
+      rules:
+        - id: dlp-credit-card-high-conf
+          sit: ['Credit Card Number']
+          min_count: 1
+          confidence: high
+          actions: [notify_user, generate_incident_report]
+  # 3.3.1 — sensitivity label policies published
+  sensitivity_labels:
+    - id: lbl-public
+      name: Public
+    - id: lbl-internal
+      name: Internal
+    - id: lbl-confidential
+      name: Confidential
+      settings:
+        encryption:
+          enabled: true
+          protection_type: org_wide
+  label_policies:
+    - id: pol-labels-all-users
+      labels: [lbl-public, lbl-internal, lbl-confidential]
+      scope: [email, file, site, teams]
+      default_label: lbl-internal
+      require_justification_on_downgrade: true
+      assigned_to:
+        groups: [grp-all-employees]
+
+defender:
+  # 2.1.1–2.1.7 — DfO Preset Strict via Exchange preset rules (applied via Exchange agent)
+  # 2.1.3 — notifications for internal users sending malware
+  malware_internal_sender_notifications: true
+  # 2.1.11 — comprehensive attachment filtering covered by Preset Strict
+  # 2.1.5 — Safe Attachments for SPO/OneDrive/Teams
+  safe_attachments_spo_onedrive_teams: true
+  # 2.4.3 — Microsoft Defender for Cloud Apps enabled (L2; kept here for tenant hygiene)
+  mdca:
+    enabled: true
+  # 2.4.4 — ZAP for Teams
+  zap_teams: true
+  # No ASR block rules at L1; rely on Intune managed device for endpoint protection
+
+intune:
+  # 4.1 — devices without compliance policy marked non-compliant
+  non_compliant_by_default: true
+  # 4.2 — personal device enrollment blocked
+  personal_device_enrollment_blocked: true
+  # Baseline compliance policies per platform — declared here; rolled out to pilot first via agent
+  compliance_policies:
+    - id: comp-win-baseline
+      platform: windows
+      require_bitlocker: true
+      require_secure_boot: true
+      require_code_integrity: true
+      os_minimum_version: '10.0.19045.0'
+      defender_av_required: true
+      defender_realtime_required: true
+      defender_signature_max_age_hours: 24
+      password_required: true
+      password_minimum_length: 14
+      inactivity_lock_minutes: 5
+      grace_period_hours: 24
+      assignments:
+        include_groups: [grp-intune-all-users]
+        exclude_groups: [grp-intune-exempt]
+    - id: comp-ios-baseline
+      platform: ios
+      os_minimum_version: '17.0'
+      require_passcode: true
+      passcode_minimum_length: 6
+      inactivity_lock_minutes: 5
+      jailbreak_block: true
+      encryption_required: true
+      assignments:
+        include_groups: [grp-intune-all-users]
+    - id: comp-android-baseline
+      platform: android
+      os_minimum_version: '13.0'
+      require_password: true
+      password_minimum_length: 6
+      inactivity_lock_minutes: 5
+      encryption_required: true
+      play_protect_enforced: true
+      assignments:
+        include_groups: [grp-intune-all-users]
+
+powerbi:
+  tenant_settings:
+    # 9.1.4 — publish to web restricted
+    publish_to_web: disabled
+    # 9.1.1 / 9.1.2 / 9.1.3 — guest access restricted
+    allow_guest_access: false
+    share_content_with_external_users: specific_security_groups
+    # 9.1.5 — R/Python visuals (L2; keep permissive in L1)
+    # 9.1.6 — sensitivity labels for content
+    sensitivity_labels_for_content: true
+    # 9.1.7 — shareable links restricted
+    shareable_links: specific_security_groups
+    # 9.1.8 — external data sharing restricted
+    # 9.1.9 — block ResourceKey auth
+    block_resource_key_auth: true
+    # 9.1.10 — service principal API access restricted
+    service_principal_api_access: specific_security_groups
+    # 9.1.11 / 9.1.12 — service principals cannot create profiles / workspaces
+    service_principals_create_workspaces: false

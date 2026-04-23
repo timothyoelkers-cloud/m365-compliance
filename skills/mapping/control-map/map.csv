@@ -1,0 +1,107 @@
+control_id,control_description,m365_workload,graph_or_ps_reference,framework,framework_ref,coverage_type,evidence_artefact,notes
+m365.entra.ca.mfa-phishing-resistant,CA requires phishing-resistant MFA for admins,entra,/identity/conditionalAccess/policies + authenticationStrength,cis-m365,5.2.2.5,primary,ca.policies.mfa-phishing-resistant.json,CIS L2; admin scope. Broaden to all users for stricter posture.
+m365.entra.ca.mfa-phishing-resistant,CA requires phishing-resistant MFA for admins,entra,/identity/conditionalAccess/policies + authenticationStrength,dora,Art 9(2)(d),primary,ca.policies.mfa-phishing-resistant.json,RTS 2024/1774 Art 20-21 logical access control
+m365.entra.ca.mfa-phishing-resistant,CA requires phishing-resistant MFA for admins,entra,/identity/conditionalAccess/policies + authenticationStrength,nis2,Art 21(2)(j),primary,ca.policies.mfa-phishing-resistant.json,MFA / secure authentication
+m365.entra.ca.mfa-phishing-resistant,CA requires phishing-resistant MFA for admins,entra,/identity/conditionalAccess/policies + authenticationStrength,hipaa,§164.312(d),primary,ca.policies.mfa-phishing-resistant.json,Posture already matches expected NPRM MFA mandate
+m365.entra.ca.mfa-all-users,CA requires MFA for all users,entra,/identity/conditionalAccess/policies,cis-m365,5.2.2.2,primary,ca.policies.mfa-all-users.json,L1
+m365.entra.ca.mfa-all-users,CA requires MFA for all users,entra,/identity/conditionalAccess/policies,dora,Art 9(2)(d),primary,ca.policies.mfa-all-users.json,
+m365.entra.ca.mfa-all-users,CA requires MFA for all users,entra,/identity/conditionalAccess/policies,nis2,Art 21(2)(j),primary,ca.policies.mfa-all-users.json,
+m365.entra.ca.mfa-all-users,CA requires MFA for all users,entra,/identity/conditionalAccess/policies,hipaa,§164.312(d),primary,ca.policies.mfa-all-users.json,
+m365.entra.ca.block-legacy-auth,CA blocks legacy authentication,entra,/identity/conditionalAccess/policies clientAppTypes,cis-m365,5.2.2.3,primary,ca.policies.block-legacy-auth.json,L1; check sign-in logs for legacy usage first
+m365.entra.ca.block-legacy-auth,CA blocks legacy authentication,entra,/identity/conditionalAccess/policies clientAppTypes,dora,Art 9(2)(e),partial,ca.policies.block-legacy-auth.json,Pair with TLS enforcement
+m365.entra.ca.block-legacy-auth,CA blocks legacy authentication,entra,/identity/conditionalAccess/policies clientAppTypes,nis2,Art 21(2)(e),partial,ca.policies.block-legacy-auth.json,Contributes to secure acquisition/maintenance
+m365.entra.ca.block-legacy-auth,CA blocks legacy authentication,entra,/identity/conditionalAccess/policies clientAppTypes,hipaa,§164.312(e),partial,ca.policies.block-legacy-auth.json,Transmission security
+m365.entra.ca.identity-protection-risk,Identity Protection sign-in + user risk policies,entra,/identity/conditionalAccess/policies signInRiskLevels userRiskLevels,cis-m365,5.2.2.6,primary,ca.policies.identity-protection.json,L1 user risk policy
+m365.entra.ca.identity-protection-risk,Identity Protection sign-in + user risk policies,entra,/identity/conditionalAccess/policies signInRiskLevels userRiskLevels,cis-m365,5.2.2.7,primary,ca.policies.identity-protection.json,L1 sign-in risk policy
+m365.entra.ca.identity-protection-risk,Identity Protection sign-in + user risk policies,entra,/identity/conditionalAccess/policies signInRiskLevels userRiskLevels,dora,Art 10,primary,ca.policies.identity-protection.json,Detection layer
+m365.entra.ca.identity-protection-risk,Identity Protection sign-in + user risk policies,entra,/identity/conditionalAccess/policies signInRiskLevels userRiskLevels,nis2,Art 21(2)(b),partial,ca.policies.identity-protection.json,Incident handling detection
+m365.entra.ca.managed-device-required,CA requires managed device for authentication,entra,/identity/conditionalAccess/policies grantControls,cis-m365,5.2.2.9,primary,ca.policies.managed-device.json,L1
+m365.entra.ca.managed-device-required,CA requires managed device for authentication,entra,/identity/conditionalAccess/policies grantControls,dora,Art 9(2)(f),primary,ca.policies.managed-device.json,Secure remote access
+m365.entra.ca.managed-device-required,CA requires managed device for authentication,entra,/identity/conditionalAccess/policies grantControls,nis2,Art 21(2)(i),partial,ca.policies.managed-device.json,Access control policies
+m365.entra.ca.managed-device-required,CA requires managed device for authentication,entra,/identity/conditionalAccess/policies grantControls,hipaa,§164.310(c),partial,ca.policies.managed-device.json,Workstation security
+m365.entra.pim.just-in-time,PIM JIT for privileged roles,entra,/roleManagement/directory/roleAssignmentSchedulePolicies,cis-m365,5.3.1,primary,pim.roleSchedulePolicies.json,L2; requires Entra ID P2
+m365.entra.pim.just-in-time,PIM JIT for privileged roles,entra,/roleManagement/directory/roleAssignmentSchedulePolicies,cis-m365,5.3.4,partial,pim.roleSchedulePolicies.json,L1 - approval required for GA activation
+m365.entra.pim.just-in-time,PIM JIT for privileged roles,entra,/roleManagement/directory/roleAssignmentSchedulePolicies,cis-m365,5.3.5,partial,pim.roleSchedulePolicies.json,L1 - approval required for Privileged Role Admin
+m365.entra.pim.just-in-time,PIM JIT for privileged roles,entra,/roleManagement/directory/roleAssignmentSchedulePolicies,dora,Art 9(2)(d),partial,pim.roleSchedulePolicies.json,Pair with role-scoped admin units
+m365.entra.pim.just-in-time,PIM JIT for privileged roles,entra,/roleManagement/directory/roleAssignmentSchedulePolicies,nis2,Art 21(2)(i),partial,pim.roleSchedulePolicies.json,Access control policies; pair with access reviews
+m365.entra.pim.just-in-time,PIM JIT for privileged roles,entra,/roleManagement/directory/roleAssignmentSchedulePolicies,hipaa,§164.308(a)(4),partial,pim.roleSchedulePolicies.json,Information access management
+m365.entra.access-reviews.privileged,Access Reviews for privileged roles,entra,/identityGovernance/accessReviews/definitions,cis-m365,5.3.3,primary,accessReviews.privileged.json,L1
+m365.entra.access-reviews.privileged,Access Reviews for privileged roles,entra,/identityGovernance/accessReviews/definitions,dora,Art 9(2)(d),partial,accessReviews.privileged.json,Periodic re-verification of access
+m365.entra.access-reviews.privileged,Access Reviews for privileged roles,entra,/identityGovernance/accessReviews/definitions,nis2,Art 21(2)(i),primary,accessReviews.privileged.json,Privilege review cadence
+m365.entra.access-reviews.privileged,Access Reviews for privileged roles,entra,/identityGovernance/accessReviews/definitions,hipaa,§164.308(a)(4)(ii)(C),primary,accessReviews.privileged.json,Access establishment and modification
+m365.entra.admin-cloud-only,Administrative accounts are cloud-only,entra,Convention + Get-MgUser filter,cis-m365,1.1.1,primary,admin.accounts.cloud-only.json,L1; tier-0 admin hygiene
+m365.entra.admin-cloud-only,Administrative accounts are cloud-only,entra,Convention + Get-MgUser filter,dora,Art 9(4)(f),partial,admin.accounts.cloud-only.json,Business-function level access
+m365.entra.break-glass.defined,Two emergency access accounts defined,entra,Convention + break-glass group,cis-m365,1.1.2,primary,break-glass.group.json,L1 - break-glass hygiene
+m365.entra.break-glass.defined,Two emergency access accounts defined,entra,Convention + break-glass group,dora,Art 11,partial,break-glass.group.json,Response and recovery prep
+m365.entra.break-glass.monitored,Emergency access account activity is monitored,entra,Alert policies + SIEM,cis-m365,2.2.1,primary,break-glass.monitoring.json,L1
+m365.entra.admin-count-2-to-4,Between 2 and 4 global admins designated,entra,Get-MgDirectoryRoleMember,cis-m365,1.1.3,primary,globalAdmins.count.json,L1
+m365.entra.auth-methods.fatigue-protect,Authenticator number match + geo context,entra,/policies/authenticationMethodsPolicy/authenticationMethodConfigurations/MicrosoftAuthenticator,cis-m365,5.2.3.1,primary,auth-methods.microsoftauthenticator.json,L1
+m365.entra.auth-methods.weak-disabled,Weak authentication methods disabled,entra,/policies/authenticationMethodsPolicy,cis-m365,5.2.3.5,primary,auth-methods.weak-disabled.json,L1 - SMS/Voice/email OTP disabled
+m365.entra.auth-methods.weak-disabled,Weak authentication methods disabled,entra,/policies/authenticationMethodsPolicy,dora,Art 9(2)(d),partial,auth-methods.weak-disabled.json,Logical access control
+m365.entra.auth-methods.weak-disabled,Weak authentication methods disabled,entra,/policies/authenticationMethodsPolicy,nis2,Art 21(2)(j),primary,auth-methods.weak-disabled.json,Secure authentication
+m365.entra.auth-methods.weak-disabled,Weak authentication methods disabled,entra,/policies/authenticationMethodsPolicy,hipaa,§164.312(d),primary,auth-methods.weak-disabled.json,Person/entity authentication
+m365.entra.password-protection.banned-list,Custom banned password list,entra,/policies/authenticationMethodsPolicy (legacy: AAD Password Protection),cis-m365,5.2.3.2,primary,password-protection.json,L1
+m365.entra.tenant-creation-restricted,Restrict non-admin users from creating tenants,entra,/policies/authorizationPolicy.defaultUserRolePermissions.allowedToCreateTenants,cis-m365,5.1.2.3,primary,authorizationPolicy.json,L1
+m365.entra.user-consent.restricted,User consent to apps not allowed,entra,/policies/authorizationPolicy.defaultUserRolePermissions.permissionGrantPoliciesAssigned,cis-m365,5.1.5.1,primary,consent.policy.json,L2
+m365.entra.admin-consent-workflow,Admin consent workflow enabled,entra,/policies/adminConsentRequestPolicy,cis-m365,5.1.5.2,primary,adminConsentWorkflow.json,L1
+m365.entra.guest-restricted,Guest user access restricted,entra,/policies/authorizationPolicy.guestUserRoleId,cis-m365,5.1.6.2,primary,guest.access.json,L1
+m365.entra.guest-restricted,Guest user access restricted,entra,/policies/authorizationPolicy.guestUserRoleId,dora,Art 9(4)(f),partial,guest.access.json,
+m365.entra.guest-restricted,Guest user access restricted,entra,/policies/authorizationPolicy.guestUserRoleId,nis2,Art 21(2)(d),partial,guest.access.json,Supply chain - partner access boundary
+m365.exchange.smtp-auth-disabled,SMTP AUTH disabled tenant-wide,exchange,Set-TransportConfig SmtpClientAuthenticationDisabled,cis-m365,6.5.4,primary,exchange.transportConfig.json,L1
+m365.exchange.smtp-auth-disabled,SMTP AUTH disabled tenant-wide,exchange,Set-TransportConfig SmtpClientAuthenticationDisabled,dora,Art 9(2)(e),partial,exchange.transportConfig.json,
+m365.exchange.smtp-auth-disabled,SMTP AUTH disabled tenant-wide,exchange,Set-TransportConfig SmtpClientAuthenticationDisabled,nis2,Art 21(2)(e),partial,exchange.transportConfig.json,
+m365.exchange.modern-auth,Modern authentication for Exchange Online,exchange,Get-OrganizationConfig OAuth2ClientProfileEnabled,cis-m365,6.5.1,primary,exchange.organizationConfig.json,L1
+m365.exchange.mail-forwarding-blocked,All forms of mail forwarding blocked,exchange,Get-HostedOutboundSpamFilterPolicy + Get-RemoteDomain + Get-TransportRule,cis-m365,6.2.1,primary,exchange.forwarding.json,L1 - critical exfil control
+m365.exchange.mail-forwarding-blocked,All forms of mail forwarding blocked,exchange,Get-HostedOutboundSpamFilterPolicy + Get-RemoteDomain + Get-TransportRule,dora,Art 9(2)(c),partial,exchange.forwarding.json,Confidentiality protection
+m365.exchange.mail-forwarding-blocked,All forms of mail forwarding blocked,exchange,Get-HostedOutboundSpamFilterPolicy + Get-RemoteDomain + Get-TransportRule,nis2,Art 21(2)(a),partial,exchange.forwarding.json,Info system security policy
+m365.exchange.mail-forwarding-blocked,All forms of mail forwarding blocked,exchange,Get-HostedOutboundSpamFilterPolicy + Get-RemoteDomain + Get-TransportRule,hipaa,§164.312(e),primary,exchange.forwarding.json,Transmission security
+m365.exchange.dkim,DKIM enabled for all Exchange domains,exchange,Get-DkimSigningConfig,cis-m365,2.1.9,primary,exchange.dkim.json,L1 - emits external DNS records required
+m365.exchange.dmarc,DMARC records published for all domains,exchange,External DNS (verify),cis-m365,2.1.10,partial,exchange.dmarc.json,L1 - tenant-side verification only; DNS is external
+m365.exchange.spf,SPF records published for all Exchange domains,exchange,External DNS (verify),cis-m365,2.1.8,partial,exchange.spf.json,L1 - DNS is external
+m365.exchange.anti-phish-policy,Anti-phishing policy created,exchange,Get-AntiPhishPolicy,cis-m365,2.1.7,primary,defender.anti-phish.json,L1 - Defender for O365
+m365.exchange.safe-links,Safe Links for Office Applications enabled,exchange,Get-SafeLinksPolicy,cis-m365,2.1.1,primary,defender.safe-links.json,L2 - DfO P1
+m365.exchange.safe-attachments,Safe Attachments policy enabled,exchange,Get-SafeAttachmentPolicy,cis-m365,2.1.4,primary,defender.safe-attachments.json,L2 - DfO P1
+m365.exchange.safe-attachments,Safe Attachments policy enabled,exchange,Get-SafeAttachmentPolicy,dora,Art 9(2)(b),partial,defender.safe-attachments.json,Minimisation of impact
+m365.exchange.priority-account-protect,Priority account protection enabled,exchange,Get-AntiPhishPolicy impersonation,cis-m365,2.4.1,primary,defender.priority-accounts.json,L1 - Defender for O365 P2
+m365.exchange.priority-account-strict,Priority accounts have Strict protection presets,exchange,Get-ATPProtectionPolicyRule,cis-m365,2.4.2,primary,defender.presets.strict.priority.json,L1
+m365.exchange.mailbox-audit,Mailbox auditing tenant-wide,exchange,Get-OrganizationConfig AuditDisabled,cis-m365,6.1.1,primary,exchange.auditDisabled.json,L1
+m365.exchange.mailbox-audit-actions,Mailbox audit actions configured,exchange,Get-Mailbox Audit*,cis-m365,6.1.2,primary,exchange.mailbox.auditActions.json,L1
+m365.exchange.external-sender-banner,External sender banner transport rule,exchange,Get-TransportRule ExternalSender,cis-m365,6.2.3,primary,exchange.rule.externalSender.json,L1
+m365.exchange.outbound-spam-limits,Outbound anti-spam message limits,exchange,Get-HostedOutboundSpamFilterPolicy,cis-m365,2.1.15,primary,exchange.outboundSpam.json,L1
+m365.exchange.outbound-spam-limits,Outbound anti-spam message limits,exchange,Get-HostedOutboundSpamFilterPolicy,dora,Art 10,partial,exchange.outboundSpam.json,Detection - compromised account exfil signal
+m365.purview.audit.unified-log-enabled,Microsoft 365 audit log search enabled,purview,Get-AdminAuditLogConfig UnifiedAuditLogIngestionEnabled,cis-m365,3.1.1,primary,purview.audit.config.json,L1 - must be on before any audit evidence is meaningful
+m365.purview.audit.unified-log-enabled,Microsoft 365 audit log search enabled,purview,Get-AdminAuditLogConfig UnifiedAuditLogIngestionEnabled,dora,Art 10,partial,purview.audit.config.json,Detection layer
+m365.purview.audit.unified-log-enabled,Microsoft 365 audit log search enabled,purview,Get-AdminAuditLogConfig UnifiedAuditLogIngestionEnabled,nis2,Art 21(2)(b),partial,purview.audit.config.json,Incident handling evidentiary foundation
+m365.purview.audit.unified-log-enabled,Microsoft 365 audit log search enabled,purview,Get-AdminAuditLogConfig UnifiedAuditLogIngestionEnabled,hipaa,§164.312(b),primary,purview.audit.config.json,Audit Controls
+m365.purview.dlp.enabled,DLP policies enabled,purview,Get-DlpCompliancePolicy,cis-m365,3.2.1,primary,purview.dlp.json,L1
+m365.purview.dlp.enabled,DLP policies enabled,purview,Get-DlpCompliancePolicy,dora,Art 9(2)(c),primary,purview.dlp.json,Confidentiality protection
+m365.purview.dlp.enabled,DLP policies enabled,purview,Get-DlpCompliancePolicy,nis2,Art 21(2)(a),partial,purview.dlp.json,
+m365.purview.dlp.enabled,DLP policies enabled,purview,Get-DlpCompliancePolicy,hipaa,§164.308(a)(1)(ii)(D),partial,purview.dlp.json,Info system activity review - exfil detection
+m365.purview.dlp.teams,DLP policies for Microsoft Teams,purview,Get-DlpCompliancePolicy scope Teams,cis-m365,3.2.2,primary,purview.dlp.teams.json,L1
+m365.purview.sensitivity-labels.published,Sensitivity label policies published,purview,Get-LabelPolicy,cis-m365,3.3.1,primary,purview.label.policies.json,L1
+m365.purview.sensitivity-labels.published,Sensitivity label policies published,purview,Get-LabelPolicy,dora,Art 9(2)(c),primary,purview.label.policies.json,Data authenticity/confidentiality
+m365.purview.sensitivity-labels.published,Sensitivity label policies published,purview,Get-LabelPolicy,nis2,Art 21(2)(h),primary,purview.label.policies.json,Cryptography / encryption policy
+m365.purview.sensitivity-labels.published,Sensitivity label policies published,purview,Get-LabelPolicy,hipaa,§164.312(a)(2)(iv),primary,purview.label.policies.json,Encryption
+m365.intune.compliance.gate,Devices without compliance policy are non-compliant,intune,/deviceManagement/deviceCompliancePolicies default,cis-m365,4.1,primary,intune.nocompliance.default.json,L2 - gates CA
+m365.intune.enrollment.personal-blocked,Personal device enrollment blocked by default,intune,Get-MgDeviceManagementDeviceEnrollmentConfiguration,cis-m365,4.2,primary,intune.enrollment.restrictions.json,L2
+m365.intune.compliance.gate,Devices without compliance policy are non-compliant,intune,/deviceManagement/deviceCompliancePolicies default,dora,Art 7,partial,intune.nocompliance.default.json,Up-to-date reliable ICT systems
+m365.intune.compliance.gate,Devices without compliance policy are non-compliant,intune,/deviceManagement/deviceCompliancePolicies default,nis2,Art 21(2)(e),partial,intune.nocompliance.default.json,Vulnerability handling
+m365.intune.compliance.gate,Devices without compliance policy are non-compliant,intune,/deviceManagement/deviceCompliancePolicies default,hipaa,§164.310(c),primary,intune.nocompliance.default.json,Workstation security
+m365.defender.mdca,Defender for Cloud Apps enabled and configured,defender,/cloudAppSecurity/portalState (MDA API),cis-m365,2.4.3,primary,defender.mdca.json,L2
+m365.defender.mdca,Defender for Cloud Apps enabled and configured,defender,/cloudAppSecurity/portalState (MDA API),dora,Art 10,partial,defender.mdca.json,Detection layer
+m365.defender.mdca,Defender for Cloud Apps enabled and configured,defender,/cloudAppSecurity/portalState (MDA API),nis2,Art 21(2)(b),partial,defender.mdca.json,Incident handling
+m365.defender.zap-teams,Zero-hour auto purge for Microsoft Teams,defender,Get-TeamsProtectionPolicy,cis-m365,2.4.4,primary,defender.zap.teams.json,L1
+m365.sharepoint.sharing-capability,SharePoint external content sharing restricted,sharepoint,Get-SPOTenant SharingCapability,cis-m365,7.2.3,primary,sharepoint.sharing.json,L1
+m365.sharepoint.sharing-capability,SharePoint external content sharing restricted,sharepoint,Get-SPOTenant SharingCapability,dora,Art 9(2)(c),partial,sharepoint.sharing.json,Confidentiality
+m365.sharepoint.sharing-capability,SharePoint external content sharing restricted,sharepoint,Get-SPOTenant SharingCapability,hipaa,§164.502,partial,sharepoint.sharing.json,Privacy Rule - minimum necessary
+m365.sharepoint.link-sharing,Link sharing restricted in SP and OD,sharepoint,Get-SPOTenant DefaultSharingLinkType,cis-m365,7.2.7,primary,sharepoint.linkSharing.json,L1
+m365.sharepoint.guest-expire,Guest access expires automatically,sharepoint,Get-SPOTenant ExternalUserExpirationRequired,cis-m365,7.2.9,primary,sharepoint.guestExpiry.json,L1
+m365.sharepoint.guest-expire,Guest access expires automatically,sharepoint,Get-SPOTenant ExternalUserExpirationRequired,nis2,Art 21(2)(d),partial,sharepoint.guestExpiry.json,Supply chain - guest lifecycle
+m365.teams.federation.restricted,External domains restricted in Teams admin center,teams,Get-CsTenantFederationConfiguration,cis-m365,8.2.1,primary,teams.federation.json,L2
+m365.teams.unmanaged-blocked,Communication with unmanaged Teams users disabled,teams,Get-CsTenantFederationConfiguration AllowTeamsConsumer,cis-m365,8.2.2,primary,teams.unmanaged.json,L1
+m365.teams.anonymous-no-join,Anonymous users cannot join meetings,teams,Get-CsTeamsMeetingPolicy AllowAnonymousUsersToJoinMeeting,cis-m365,8.5.1,primary,teams.meeting.anonymous.json,L2
+m365.teams.lobby-bypass,Only people in org can bypass lobby,teams,Get-CsTeamsMeetingPolicy AutoAdmittedUsers,cis-m365,8.5.3,primary,teams.meeting.lobby.json,L1
+m365.teams.app-permission,App permission policies configured,teams,Get-CsTeamsAppPermissionPolicy,cis-m365,8.4.1,primary,teams.app.permission.json,L1
+m365.powerbi.publish-to-web,Publish to web restricted,powerbi,Power BI Admin API PublishToWeb,cis-m365,9.1.4,primary,powerbi.publishToWeb.json,L1
+m365.powerbi.guest-restricted,Power BI guest user access restricted,powerbi,Power BI Admin API,cis-m365,9.1.1,primary,powerbi.guest.json,L1
+m365.powerbi.service-principals-restricted,Service principal access to Power BI APIs restricted,powerbi,Power BI Admin API,cis-m365,9.1.10,primary,powerbi.sp.apis.json,L1

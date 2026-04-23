@@ -1,0 +1,204 @@
+version: 1.0.0
+metadata:
+  name: hipaa-overlay
+  kind: profile
+  description: |
+    HIPAA overlay for covered entities and business associates. Layer on top of
+    cis-l1-l2 for tenants holding ePHI under a signed Microsoft BAA.
+    Tuned for the proposed Security Rule strengthening (HHS NPRM Jan 2025,
+    final rule expected May 2026 — revisit on publication).
+
+rollout:
+  rings: [0, 1, 2, 3]
+  notes: |
+    BAA acceptance must be recorded in tenant tags before this profile is
+    merged into a tenant baseline. Agent refuses to apply if
+    tenant_tags.baa_accepted is false.
+
+entra:
+  # §164.312(d) — phishing-resistant MFA for all (NPRM will elevate MFA to mandatory)
+  conditional_access_policies:
+    - id: hipaa-ca-040-phishing-resistant-all
+      displayName: 'HIPAA — Phishing-resistant MFA for all users'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['All'] }
+      grantControls: { operator: AND, authenticationStrength: phishing-resistant-mfa }
+      replaces: [cis-l1-ca-002-mfa-all-users]
+
+    # §164.312(a)(2)(iii) — automatic logoff
+    - id: hipaa-ca-041-sign-in-frequency-ephi-apps
+      displayName: 'HIPAA — Sign-in frequency for ePHI-accessing apps'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: [grp-apps-ephi] }     # app group representing ePHI apps
+      sessionControls:
+        signInFrequency:   { value: 1, type: hours, isEnabled: true }
+        persistentBrowser: { mode: never, isEnabled: true }
+
+    # §164.312(a)(1) — access control / §164.310(c) — workstation security
+    - id: hipaa-ca-042-ephi-apps-require-compliant-device
+      displayName: 'HIPAA — ePHI apps require compliant device'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: [grp-apps-ephi] }
+      grantControls: { operator: OR, builtInControls: [compliantDevice, domainJoinedDevice] }
+
+  # §164.308(a)(4) — information access management — Access Reviews aggressive
+  access_reviews:
+    - id: ar-hipaa-privileged-monthly
+      scope: privileged_roles
+      cadence: monthly
+      reviewers: [grp-access-review-reviewers]
+      auto_apply: true
+      replaces: [ar-privileged-roles-quarterly]
+    - id: ar-hipaa-ephi-access-monthly
+      scope: custom_groups
+      groups: [grp-apps-ephi-users]
+      cadence: monthly
+      reviewers: [grp-ephi-access-reviewers]
+      auto_apply: true
+
+exchange:
+  # §164.312(e) — transmission security. OME rule.
+  ome_rules:
+    - id: ome-phi-auto-encrypt
+      if_contains_sensitive_information: ['U.S. Health Insurance Claim Number (HICN)', 'U.S. Social Security Number']
+      action: apply_ome_encryption
+  # §164.312(b) — audit controls. Retention 6 years per §164.316(b)(2).
+  mailbox_audit:
+    retention_days: 2190  # 6 years
+    tenant_default_enabled: true
+  customer_lockbox_enabled: true
+  customer_key_for_regulated_workloads: true
+
+sharepoint:
+  # §164.502 — minimum necessary (Privacy Rule). Narrower sharing default for ePHI tenants.
+  sharing_capability: ExistingExternalUserSharingOnly
+  external_user_expire_in_days: 30
+
+purview:
+  # §164.312(b) — Audit Controls
+  unified_audit_log_enabled: true
+  audit_retention_days: 2190    # 6 years
+  audit_premium_enabled: true
+  # §164.312(a)(2)(iv) — encryption; §164.312(e)(2)(ii) — transmission encryption
+  sensitivity_labels:
+    - id: lbl-phi-confidential
+      name: 'Confidential / PHI'
+      settings:
+        encryption:
+          enabled: true
+          protection_type: org_wide
+          rights: [co_owner, co_author, reviewer]
+        content_marking:
+          footer: 'CONFIDENTIAL / PHI — protected under 45 CFR Part 164'
+    - id: lbl-phi-restricted
+      name: 'Restricted / PHI'
+      settings:
+        encryption:
+          enabled: true
+          protection_type: named_groups
+          rights: [co_owner]
+        content_marking:
+          header: 'RESTRICTED / PHI'
+          footer: 'RESTRICTED / PHI — limited-access health information'
+          watermark: 'RESTRICTED / PHI'
+  # §164.502 — minimum necessary. Auto-label PHI.
+  auto_label_policies:
+    - id: auto-label-phi
+      mode: simulation
+      workload: [exchange, sharepoint, onedrive]
+      apply_label: lbl-phi-confidential
+      rules:
+        - content_matches_sensitive_information:
+            - 'U.S. Health Insurance Claim Number (HICN)'
+            - 'U.S. Medicare Beneficiary Identifier (MBI)'
+            - 'International Classification of Diseases (ICD-10-CM)'
+            - 'International Classification of Diseases (ICD-9-CM)'
+          min_count: 1
+          confidence: high
+  # §164.308(a)(1)(ii)(D) — information system activity review
+  dlp_policies:
+    - id: dlp-hipaa-phi
+      mode: test_with_notifications    # promote to enforce after observation
+      scope: [exchange, sharepoint, onedrive, teams, endpoint]
+      rules:
+        - id: phi-high-confidence-block-external
+          sit: ['U.S. Health Insurance Claim Number (HICN)', 'U.S. Medicare Beneficiary Identifier (MBI)', 'International Classification of Diseases (ICD-10-CM)']
+          min_count: 1
+          confidence: high
+          actions: [block_external_sharing, notify_user, notify_admins, generate_incident_report]
+  # §164.316(b)(2) — 6-year documentation retention
+  retention_labels:
+    - id: lbl-hipaa-6yr
+      retain_days: 2190
+      is_record: false
+      retention_action: keep_and_delete
+
+defender:
+  # §164.308(a)(5)(ii)(B) — protection from malware. Strict presets.
+  mdo_preset:
+    apply_to_all_users: true
+    strict_protection_for_priority_accounts: true
+  # §164.308(a)(5)(ii)(C) — log-in monitoring; identity protection + alerting
+  identity_protection:
+    sign_in_risk_policy: enabled
+    user_risk_policy: enabled
+  # §164.312(b) — audit controls (Defender incidents + AIR)
+  xdr_automated_investigation: fullyAutomated
+  # §164.308(a)(5) — hygiene + training
+  attack_simulation:
+    enabled: true
+    cadence: monthly
+    scope_groups: [grp-workforce]
+    training_on_fail: mandatory
+  asr_rules:
+    - rule: block_credential_stealing_lsass
+      mode: block
+    - rule: block_office_apps_creating_child_processes
+      mode: block
+    - rule: block_executable_content_from_email_client_and_webmail
+      mode: block
+
+intune:
+  # §164.310(c) — workstation security; §164.310(d)(1)(i) — device disposal (wipe)
+  compliance_policies:
+    - id: comp-win-hipaa
+      platform: windows
+      os_minimum_version: 'bump-monthly-via-ci'
+      require_bitlocker: true
+      require_secure_boot: true
+      require_code_integrity: true
+      defender_realtime_required: true
+      defender_signature_max_age_hours: 12
+      password_minimum_length: 14
+      inactivity_lock_minutes: 3
+      grace_period_hours: 12
+      assignments:
+        include_groups: [grp-intune-all-users]
+      replaces: [comp-win-baseline]
+    - id: comp-ios-hipaa
+      platform: ios
+      require_passcode: true
+      passcode_minimum_length: 8
+      inactivity_lock_minutes: 2
+      jailbreak_block: true
+      encryption_required: true
+      assignments:
+        include_groups: [grp-intune-all-users]
+      replaces: [comp-ios-baseline]
+
+# Tenant tags for HIPAA
+tenant_tags:
+  baa_accepted: false                       # orchestrator refuses apply unless true
+  baa_accepted_on: ''
+  baa_version: ''
+  baa_in_scope_services: []
+  phi_present: true
+  hipaa_covered_entity_or_ba: covered_entity  # covered_entity | business_associate
+  incident_response_plan_tested_last: ''
+  breach_risk_assessment_template: 'hipaa-4-factor-v1'

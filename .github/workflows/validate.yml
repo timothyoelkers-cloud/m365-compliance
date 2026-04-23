@@ -1,0 +1,133 @@
+name: Validate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Baseline & evidence JSON schema validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli ajv-formats js-yaml
+      - name: Convert YAML baselines to JSON (in-memory) and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCHEMA="baselines/schema/baseline.schema.json"
+          FAIL=0
+          # Loop over every yaml file under baselines/ except schema/
+          while IFS= read -r -d '' f; do
+            echo "::group::Validating $f"
+            node -e "
+              const yaml = require('js-yaml');
+              const fs = require('fs');
+              const doc = yaml.load(fs.readFileSync('$f','utf8'));
+              fs.writeFileSync('/tmp/_baseline.json', JSON.stringify(doc, null, 2));
+            "
+            if ! ajv validate -s "$SCHEMA" -d /tmp/_baseline.json --spec=draft2020 -c ajv-formats --strict=false; then
+              echo "::error file=$f::schema validation failed"
+              FAIL=1
+            fi
+            echo "::endgroup::"
+          done < <(find baselines -type f \( -name '*.yaml' -o -name '*.yml' \) ! -path 'baselines/schema/*' -print0)
+          # Also sanity-check the evidence schema compiles
+          ajv compile -s baselines/schema/evidence-bundle.schema.json --spec=draft2020 -c ajv-formats
+          exit $FAIL
+
+  control-map:
+    name: Control map CSV sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check CSV header + required columns
+        shell: bash
+        run: |
+          set -euo pipefail
+          CSV="skills/mapping/control-map/map.csv"
+          head -1 "$CSV" | tr ',' '\n' | nl
+          REQUIRED=(control_id control_description m365_workload graph_or_ps_reference framework framework_ref coverage_type evidence_artefact notes)
+          HEADER=$(head -1 "$CSV")
+          for col in "${REQUIRED[@]}"; do
+            if ! echo "$HEADER" | grep -q "$col"; then
+              echo "::error file=$CSV::missing column $col"
+              exit 1
+            fi
+          done
+          # Framework column must be one of the allowed values
+          awk -F',' 'NR>1 && $5!="" { print $5 }' "$CSV" | sort -u | while read -r fw; do
+            case "$fw" in
+              cis-m365|dora|nis2|hipaa) ;;
+              *) echo "::error file=$CSV::unknown framework '$fw'"; exit 1 ;;
+            esac
+          done
+          # coverage_type values
+          awk -F',' 'NR>1 && $7!="" { print $7 }' "$CSV" | sort -u | while read -r cov; do
+            case "$cov" in
+              primary|partial|contributes-to) ;;
+              *) echo "::error file=$CSV::unknown coverage_type '$cov'"; exit 1 ;;
+            esac
+          done
+
+  skill-frontmatter:
+    name: Skill + agent frontmatter lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every SKILL.md has name + description
+        shell: bash
+        run: |
+          set -euo pipefail
+          FAIL=0
+          while IFS= read -r f; do
+            head -20 "$f" | grep -q '^name:'        || { echo "::error file=$f::missing 'name' in frontmatter"; FAIL=1; }
+            head -20 "$f" | grep -q '^description:' || { echo "::error file=$f::missing 'description' in frontmatter"; FAIL=1; }
+          done < <(find skills -name SKILL.md)
+          while IFS= read -r f; do
+            head -20 "$f" | grep -q '^name:'        || { echo "::error file=$f::missing 'name' in frontmatter"; FAIL=1; }
+            head -20 "$f" | grep -q '^description:' || { echo "::error file=$f::missing 'description' in frontmatter"; FAIL=1; }
+          done < <(find agents -name '*.md')
+          exit $FAIL
+
+  powershell:
+    name: PSScriptAnalyzer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -AcceptLicense
+      - name: Analyse
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path scripts -Recurse -Severity @('Error','Warning') -ExcludeRule PSAvoidUsingPlainTextForPassword
+          if ($results) {
+            $results | Format-Table -AutoSize
+            $errors = @($results | Where-Object Severity -eq 'Error')
+            if ($errors.Count -gt 0) { Write-Host "::error::PSScriptAnalyzer found $($errors.Count) errors"; exit 1 }
+            $warnings = @($results | Where-Object Severity -eq 'Warning')
+            if ($warnings.Count -gt 0) { Write-Host "::warning::PSScriptAnalyzer found $($warnings.Count) warnings" }
+          } else {
+            Write-Host "PSScriptAnalyzer clean."
+          }
+
+  markdownlint:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v17
+        with:
+          globs: |
+            **/*.md
+            !**/node_modules/**

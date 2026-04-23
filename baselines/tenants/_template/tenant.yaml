@@ -1,0 +1,101 @@
+# Tenant registry entry template.
+# Copy this file to baselines/tenants/<tenant-id>/tenant.yaml and populate.
+# tenant.id should match the directory name.
+
+tenant:
+  id:            "00000000-0000-0000-0000-000000000000"     # Entra tenant GUID
+  name:          "Example Co"                               # legal name
+  display_name:  "Example Co (UK HQ)"                       # what shows in the portal
+  region:        "EU-North"                                 # M365 datacentre geo — EU-North, NAM, APC, etc.
+  jurisdictions: [GB]                                       # ISO 3166-1 alpha-2 list
+
+# ---------------------------------------------------------------------------
+# Authentication mode — how the portal/agents connect to this tenant.
+# ---------------------------------------------------------------------------
+auth:
+  mode: app            # app | gdap | hybrid
+
+  # Populated when mode includes 'app'
+  app_registration:
+    client_id:                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    certificate_thumbprint_key:   "tenant-<tenant-id>-cert-thumbprint"     # Key Vault secret name
+    client_secret_key_vault_uri:  ""                                       # only if cert is unavailable
+
+  # Populated when mode includes 'gdap'
+  gdap:
+    partner_tenant_id:        ""
+    partner_client_id:        ""
+    partner_certificate_thumbprint_key: ""
+    relationship_id:          ""                           # GDAP relationship GUID
+
+# ---------------------------------------------------------------------------
+# Licensing — drives baseline validity (P2-only features need P2 licence)
+# ---------------------------------------------------------------------------
+licensing:
+  tier:   E5                                               # E3 | E5 | Business Premium | mixed
+  addons:
+    - "Microsoft 365 E5 Compliance"
+    - "Entra ID Governance"
+
+# ---------------------------------------------------------------------------
+# Frameworks this tenant is bound by — drives profile selection + reporting
+# ---------------------------------------------------------------------------
+frameworks:
+  - cis-m365
+  # - dora
+  # - nis2-important     # nis2-essential | nis2-important
+  # - hipaa-covered
+
+# ---------------------------------------------------------------------------
+# Profile composition — applied in declared order (lowest to highest precedence)
+# ---------------------------------------------------------------------------
+profiles:
+  - cis-l1-l2@~1.0
+  # - dora-overlay@~1.0
+  # - nis2-overlay@~1.0
+  # - hipaa-overlay@~1.0
+
+# ---------------------------------------------------------------------------
+# Break-glass posture (monitored by Resolve-Baseline / the orchestrator)
+# ---------------------------------------------------------------------------
+break_glass:
+  group_id:              "grp-ca-break-glass"
+  member_count_expected: 2
+  monitoring_alerts:
+    - "alert-bg-signin-any"
+    - "alert-bg-mfa-exclusion-change"
+    - "alert-bg-member-change"
+
+# ---------------------------------------------------------------------------
+# Rollout — which ring this tenant is currently placed in
+# ---------------------------------------------------------------------------
+rollout:
+  ring: 2                # 0=canary, 1=pilot, 2=broad, 3=special/regulated
+  pinned_baseline_sha: ""  # optional — pin to a specific git sha; blank means HEAD
+
+# ---------------------------------------------------------------------------
+# Operational metadata
+# ---------------------------------------------------------------------------
+tags:
+  owner:       "alice@corp.example"
+  environment: "production"
+  tier:        "tier-1"
+  created_at:  "2026-01-15"
+  notes:       ""
+
+# ---------------------------------------------------------------------------
+# Framework-specific attestations / tags — populated from overlay requirements
+# ---------------------------------------------------------------------------
+attestations:
+  # HIPAA — BAA acceptance gate
+  baa_accepted:    false
+  baa_accepted_on: ""
+  baa_version:     ""
+
+  # DORA — Financial Services Amendment
+  financial_services_amendment_accepted: false
+  dora_register_of_information_entry:    false
+
+  # NIS 2 — national registration
+  nis2_entity_registered_at_csa: false
+  nis2_member_state:             ""

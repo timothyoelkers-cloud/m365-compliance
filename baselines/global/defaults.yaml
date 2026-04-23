@@ -1,0 +1,20 @@
+version: 0.1.0
+metadata:
+  name: global-defaults
+  kind: global-defaults
+  description: |
+    Organisation-wide defaults applied beneath every profile. Keep
+    this minimal — anything that might vary by framework or tenant
+    class belongs in a profile, not here.
+
+entra:
+  security_defaults_enabled: false
+  break_glass:
+    group_id: grp-ca-break-glass
+    member_count_expected: 2
+    monitoring_alerts:
+      - alert-bg-signin-any
+      - alert-bg-mfa-exclusion-change
+
+purview:
+  unified_audit_log_enabled: true

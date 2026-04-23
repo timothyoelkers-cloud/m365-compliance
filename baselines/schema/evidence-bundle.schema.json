@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/m365-evidence-bundle.schema.json",
+  "title": "M365 Evidence Bundle Manifest",
+  "description": "Declarative manifest for a single scan / apply run against a tenant. Describes the content of the evidence bundle so downstream consumers (portal, auditors, SIEM) can parse reliably.",
+  "type": "object",
+  "required": ["schemaVersion", "tenant", "run", "baseline", "artefacts", "integrity"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "tenant": {
+      "type": "object",
+      "required": ["tenantId"],
+      "additionalProperties": false,
+      "properties": {
+        "tenantId": { "type": "string", "format": "uuid" },
+        "displayName": { "type": "string" },
+        "region": { "type": "string" },
+        "jurisdictions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 2, "maxLength": 3 }
+        },
+        "tenantClass": { "type": "string" }
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": ["runId", "mode", "startedAt", "completedAt", "operator"],
+      "additionalProperties": false,
+      "properties": {
+        "runId": { "type": "string", "format": "uuid" },
+        "mode": {
+          "type": "string",
+          "enum": ["audit", "plan", "apply-pilot", "apply-broad", "rollback"]
+        },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "operator": {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["user", "service-principal", "managed-identity"]
+            },
+            "id": { "type": "string" },
+            "displayName": { "type": "string" }
+          }
+        },
+        "approval": {
+          "type": "object",
+          "description": "Populated for apply-* and rollback modes",
+          "properties": {
+            "approverId": { "type": "string" },
+            "approvedAt": { "type": "string", "format": "date-time" },
+            "ticketRef": { "type": "string" }
+          }
+        }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "required": ["gitSha", "profiles"],
+      "additionalProperties": false,
+      "properties": {
+        "gitSha": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+        "profiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string" }
+            }
+          }
+        },
+        "overridesPresent": { "type": "boolean" }
+      }
+    },
+    "artefacts": {
+      "type": "array",
+      "description": "Per-workload evidence files produced during the run",
+      "items": {
+        "type": "object",
+        "required": ["workload", "path", "sha256", "producedBy"],
+        "additionalProperties": false,
+        "properties": {
+          "workload": {
+            "type": "string",
+            "enum": ["entra", "conditional-access", "exchange", "sharepoint", "onedrive", "teams", "purview", "defender", "intune", "powerbi"]
+          },
+          "path": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "producedBy": {
+            "type": "string",
+            "description": "Script name + version producing this artefact"
+          },
+          "schema": {
+            "type": "string",
+            "description": "Schema URI describing the artefact content (for typed consumption downstream)"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "description": "Diff / drift findings produced during plan / apply / audit",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "workload", "baselineControlId"],
+        "properties": {
+          "id": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["info", "low", "medium", "high", "critical"]
+          },
+          "workload": { "type": "string" },
+          "baselineControlId": { "type": "string" },
+          "cisRef": { "type": "string" },
+          "frameworkRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "framework": { "type": "string", "enum": ["cis-m365", "dora", "nis2", "hipaa"] },
+                "ref": { "type": "string" }
+              }
+            }
+          },
+          "currentValue": {},
+          "desiredValue": {},
+          "actionTaken": {
+            "type": "string",
+            "enum": ["none", "reported", "applied", "refused", "deferred"]
+          },
+          "evidenceArtefact": { "type": "string" }
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["manifestSha256", "signature"],
+      "additionalProperties": false,
+      "properties": {
+        "manifestSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of this manifest with the integrity.signature field set to the empty string. Computed last during bundle assembly."
+        },
+        "signature": {
+          "type": "object",
+          "description": "Optional detached signature over manifestSha256 (Azure Key Vault / HSM / code-signing)",
+          "properties": {
+            "alg": { "type": "string" },
+            "kid": { "type": "string" },
+            "value": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

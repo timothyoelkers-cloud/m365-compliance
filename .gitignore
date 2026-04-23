@@ -1,0 +1,48 @@
+# Scan output / evidence — may contain sensitive tenant data
+evidence/
+resolved-baselines/
+/out/
+*.drift.json
+*.findings.json
+
+# Secrets — belt and braces, but never commit
+*.env
+.env*
+secrets/
+*.pfx
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+.idea/
+.vscode/*.local.json
+.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/settings.shared.json
+
+# Claude Code local
+.claude/local/
+.claude/cache/
+
+# Node (for any future tooling — e.g. ajv CLI runs in CI)
+node_modules/
+npm-debug.log*
+
+# Python (tooling)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# PowerShell
+*.ps1xml.bak
+
+# Logs
+*.log
+*.pid

@@ -1,0 +1,443 @@
+# Starter diff rule set — compares a resolved baseline against a scan bundle and
+# produces findings. Each rule names the baseline path + scan path, the comparison
+# mode, and the framework refs to emit on the finding.
+#
+# Paths are dot-separated, with a [] suffix to indicate "list of objects". The
+# diff engine supports `[id=<value>]` lookups when traversing named lists.
+#
+# compareMode:
+#   equals           exact match (string/bool/number)
+#   contains         scan value (list) contains baseline value
+#   notContains      scan value (list) does not contain baseline value
+#   greaterOrEqual   scan >= baseline
+#   lessOrEqual      scan <= baseline
+#   presentAndNotNull scan path resolves to a non-null value
+#   presentAndEquals presentAndNotNull AND equals
+#
+# severity: info | low | medium | high | critical
+#
+# This file covers the top ~30 most-valuable checks. Extend as the portal
+# scan coverage grows.
+
+rules:
+
+# =============================================================================
+# Entra — identity core (CIS Section 1, 5)
+# =============================================================================
+
+  - id: entra.tenant-creation-restricted
+    workload: entra
+    baselineControlId: m365.entra.tenant-creation-restricted
+    cisRef: 5.1.2.3
+    frameworks:
+      - { framework: cis-m365, ref: 5.1.2.3 }
+    severity: high
+    baselinePath: entra.authorization_policy.default_user_role_permissions.allowed_to_create_tenants
+    scanWorkload: entra
+    scanPath: authorizationPolicy.defaultUserRolePermissions.allowedToCreateTenants
+    compareMode: equals
+
+  - id: entra.user-app-registration-blocked
+    workload: entra
+    baselineControlId: m365.entra.app-registration-user-blocked
+    cisRef: 5.1.3.2
+    frameworks:
+      - { framework: cis-m365, ref: 5.1.3.2 }
+    severity: medium
+    baselinePath: entra.authorization_policy.default_user_role_permissions.allowed_to_create_apps
+    scanWorkload: entra
+    scanPath: authorizationPolicy.defaultUserRolePermissions.allowedToCreateApps
+    compareMode: equals
+
+  - id: entra.user-consent-restricted
+    workload: entra
+    baselineControlId: m365.entra.user-consent.restricted
+    cisRef: 5.1.5.1
+    frameworks:
+      - { framework: cis-m365, ref: 5.1.5.1 }
+      - { framework: nis2,     ref: "Art 21(2)(d)" }
+    severity: high
+    baselinePath: entra.authorization_policy.default_user_role_permissions.permission_grant_policies_assigned
+    scanWorkload: entra
+    scanPath: authorizationPolicy.defaultUserRolePermissions.permissionGrantPoliciesAssigned
+    compareMode: equals
+
+  - id: entra.admin-consent-workflow-enabled
+    workload: entra
+    baselineControlId: m365.entra.admin-consent-workflow
+    cisRef: 5.1.5.2
+    frameworks:
+      - { framework: cis-m365, ref: 5.1.5.2 }
+    severity: medium
+    baselinePath: entra.admin_consent_workflow.enabled
+    scanWorkload: entra
+    scanPath: adminConsentPolicy.isEnabled
+    compareMode: equals
+
+  - id: entra.weak-auth-sms-disabled
+    workload: entra
+    baselineControlId: m365.entra.auth-methods.sms-disabled
+    cisRef: 5.2.3.5
+    frameworks:
+      - { framework: cis-m365, ref: 5.2.3.5 }
+      - { framework: nis2,     ref: "Art 21(2)(j)" }
+      - { framework: hipaa,    ref: "§164.312(d)" }
+    severity: high
+    baselinePath: entra.authentication_methods_policy.sms.state
+    scanWorkload: entra
+    scanPath: authMethodsPolicy.Sms.state
+    compareMode: equals
+
+  - id: entra.weak-auth-voice-disabled
+    workload: entra
+    baselineControlId: m365.entra.auth-methods.voice-disabled
+    cisRef: 5.2.3.5
+    frameworks: [{ framework: cis-m365, ref: 5.2.3.5 }]
+    severity: high
+    baselinePath: entra.authentication_methods_policy.voice.state
+    scanWorkload: entra
+    scanPath: authMethodsPolicy.Voice.state
+    compareMode: equals
+
+  - id: entra.fido2-enabled
+    workload: entra
+    baselineControlId: m365.entra.auth-methods.fido2
+    cisRef: "5.2.3 (auth methods family)"
+    frameworks: [{ framework: cis-m365, ref: 5.2.3 }]
+    severity: medium
+    baselinePath: entra.authentication_methods_policy.fido2.state
+    scanWorkload: entra
+    scanPath: authMethodsPolicy.Fido2.state
+    compareMode: equals
+
+  - id: entra.admin-count-min
+    workload: entra
+    baselineControlId: m365.entra.admin-count-2-to-4
+    cisRef: 1.1.3
+    frameworks: [{ framework: cis-m365, ref: 1.1.3 }]
+    severity: critical
+    baselinePath: entra.admin_accounts_policy.global_admin_min
+    scanWorkload: entra
+    scanPath: adminAccounts.count
+    compareMode: greaterOrEqual
+
+  - id: entra.admin-count-max
+    workload: entra
+    baselineControlId: m365.entra.admin-count-2-to-4
+    cisRef: 1.1.3
+    frameworks: [{ framework: cis-m365, ref: 1.1.3 }]
+    severity: high
+    baselinePath: entra.admin_accounts_policy.global_admin_max
+    scanWorkload: entra
+    scanPath: adminAccounts.count
+    compareMode: lessOrEqual
+
+  - id: entra.admin-cloud-only
+    workload: entra
+    baselineControlId: m365.entra.admin-cloud-only
+    cisRef: 1.1.1
+    frameworks: [{ framework: cis-m365, ref: 1.1.1 }]
+    severity: high
+    baselinePath: entra.admin_accounts_policy.cloud_only_required
+    scanWorkload: entra
+    # True when hybrid count is 0 — the engine supports computed comparisons
+    # via `scanComputed` (see Compare-TenantState.ps1). For now the rule checks
+    # that hybrid count equals 0 when cloud_only_required is true.
+    scanPath: adminAccounts.hybrid
+    compareMode: equalsZeroWhenBaseline
+
+# =============================================================================
+# Conditional Access (CIS Section 5.2.2)
+# =============================================================================
+
+  - id: ca.mfa-all-users-present
+    workload: conditional-access
+    baselineControlId: m365.entra.ca.mfa-all-users
+    cisRef: 5.2.2.2
+    frameworks:
+      - { framework: cis-m365, ref: 5.2.2.2 }
+      - { framework: dora,     ref: "Art 9(2)(d)" }
+      - { framework: nis2,     ref: "Art 21(2)(j)" }
+      - { framework: hipaa,    ref: "§164.312(d)" }
+    severity: critical
+    baselinePath: entra.conditional_access_policies[id=cis-l1-ca-002-mfa-all-users].state
+    scanWorkload: conditional-access
+    scanPath: policies[displayName=CIS L1 — Require MFA for all users].state
+    compareMode: equals
+
+  - id: ca.block-legacy-auth-present
+    workload: conditional-access
+    baselineControlId: m365.entra.ca.block-legacy-auth
+    cisRef: 5.2.2.3
+    frameworks:
+      - { framework: cis-m365, ref: 5.2.2.3 }
+    severity: critical
+    baselinePath: entra.conditional_access_policies[id=cis-l1-ca-001-block-legacy-auth].state
+    scanWorkload: conditional-access
+    scanPath: policies[displayName=CIS L1 — Block legacy authentication].state
+    compareMode: equals
+
+  - id: ca.break-glass-excluded-from-user-blocks
+    workload: conditional-access
+    baselineControlId: m365.entra.break-glass.defined
+    cisRef: 1.1.2
+    frameworks:
+      - { framework: cis-m365, ref: 1.1.2 }
+      - { framework: dora,     ref: "Art 11" }
+      - { framework: hipaa,    ref: "§164.312(a)(2)(ii)" }
+    severity: critical
+    baselinePath: entra.break_glass.group_id
+    scanWorkload: conditional-access
+    scanPath: invariants.breakGlassExcludedFromAllUserBlocking[*].excluded
+    compareMode: allTrue
+
+# =============================================================================
+# Exchange Online (CIS Section 2, 6)
+# =============================================================================
+
+  - id: exchange.smtp-auth-disabled
+    workload: exchange
+    baselineControlId: m365.exchange.smtp-auth-disabled
+    cisRef: 6.5.4
+    frameworks:
+      - { framework: cis-m365, ref: 6.5.4 }
+      - { framework: nis2,     ref: "Art 21(2)(e)" }
+    severity: high
+    baselinePath: exchange.smtp_auth_disabled_tenant_wide
+    scanWorkload: exchange
+    scanPath: transportConfig.SmtpClientAuthenticationDisabled
+    compareMode: equals
+
+  - id: exchange.mailbox-audit-on
+    workload: exchange
+    baselineControlId: m365.exchange.mailbox-audit
+    cisRef: 6.1.1
+    frameworks:
+      - { framework: cis-m365, ref: 6.1.1 }
+      - { framework: hipaa,    ref: "§164.312(b)" }
+      - { framework: dora,     ref: "Art 10" }
+    severity: high
+    baselinePath: exchange.mailbox_audit.tenant_default_enabled
+    scanWorkload: exchange
+    # Inverted — org AuditDisabled=false == audit is on
+    scanPath: organizationConfig.AuditDisabled
+    compareMode: invertedEquals
+
+  - id: exchange.auto-forwarding-off
+    workload: exchange
+    baselineControlId: m365.exchange.mail-forwarding-blocked
+    cisRef: 6.2.1
+    frameworks:
+      - { framework: cis-m365, ref: 6.2.1 }
+      - { framework: hipaa,    ref: "§164.312(e)" }
+    severity: high
+    baselinePath: exchange.outbound_spam.auto_forwarding_mode
+    scanWorkload: exchange
+    scanPath: outboundSpamPolicies[Name=Default].AutoForwardingMode
+    compareMode: equals
+
+  - id: exchange.dkim-enabled-for-all
+    workload: exchange
+    baselineControlId: m365.exchange.dkim
+    cisRef: 2.1.9
+    frameworks: [{ framework: cis-m365, ref: 2.1.9 }]
+    severity: medium
+    baselinePath: exchange.dkim.enable_for_all_accepted_domains
+    scanWorkload: exchange
+    scanPath: dkimSigningConfig[*].Enabled
+    compareMode: allTrue
+
+# =============================================================================
+# Purview (CIS Section 3)
+# =============================================================================
+
+  - id: purview.ual-enabled
+    workload: purview
+    baselineControlId: m365.purview.audit.unified-log-enabled
+    cisRef: 3.1.1
+    frameworks:
+      - { framework: cis-m365, ref: 3.1.1 }
+      - { framework: hipaa,    ref: "§164.312(b)" }
+      - { framework: dora,     ref: "Art 10" }
+      - { framework: nis2,     ref: "Art 21(2)(b)" }
+    severity: critical
+    baselinePath: purview.unified_audit_log_enabled
+    scanWorkload: purview
+    scanPath: unifiedAuditLog.UnifiedAuditLogIngestionEnabled
+    compareMode: equals
+
+  - id: purview.dlp-policies-present
+    workload: purview
+    baselineControlId: m365.purview.dlp.enabled
+    cisRef: 3.2.1
+    frameworks:
+      - { framework: cis-m365, ref: 3.2.1 }
+      - { framework: hipaa,    ref: "§164.308(a)(1)(ii)(D)" }
+    severity: high
+    baselinePath: purview.dlp_policies
+    scanWorkload: purview
+    scanPath: dlpPolicies
+    compareMode: presentAndNotEmpty
+
+  - id: purview.sensitivity-labels-published
+    workload: purview
+    baselineControlId: m365.purview.sensitivity-labels.published
+    cisRef: 3.3.1
+    frameworks:
+      - { framework: cis-m365, ref: 3.3.1 }
+      - { framework: hipaa,    ref: "§164.312(a)(2)(iv)" }
+      - { framework: nis2,     ref: "Art 21(2)(h)" }
+    severity: high
+    baselinePath: purview.label_policies
+    scanWorkload: purview
+    scanPath: labelPolicies
+    compareMode: presentAndNotEmpty
+
+# =============================================================================
+# SharePoint & OneDrive (CIS Section 7)
+# =============================================================================
+
+  - id: sharepoint.sharing-capability
+    workload: sharepoint
+    baselineControlId: m365.sharepoint.sharing-capability
+    cisRef: 7.2.3
+    frameworks:
+      - { framework: cis-m365, ref: 7.2.3 }
+      - { framework: dora,     ref: "Art 9(2)(c)" }
+      - { framework: hipaa,    ref: "§164.502" }
+    severity: high
+    baselinePath: sharepoint.sharing_capability
+    scanWorkload: sharepoint
+    scanPath: tenant.SharingCapability
+    compareMode: equals
+
+  - id: sharepoint.default-link-type
+    workload: sharepoint
+    baselineControlId: m365.sharepoint.link-sharing
+    cisRef: 7.2.7
+    frameworks: [{ framework: cis-m365, ref: 7.2.7 }]
+    severity: medium
+    baselinePath: sharepoint.default_sharing_link_type
+    scanWorkload: sharepoint
+    scanPath: tenant.DefaultSharingLinkType
+    compareMode: equals
+
+  - id: sharepoint.default-link-permission
+    workload: sharepoint
+    baselineControlId: m365.sharepoint.default-link-permission
+    cisRef: 7.2.11
+    frameworks: [{ framework: cis-m365, ref: 7.2.11 }]
+    severity: medium
+    baselinePath: sharepoint.default_link_permission
+    scanWorkload: sharepoint
+    scanPath: tenant.DefaultLinkPermission
+    compareMode: equals
+
+  - id: sharepoint.guest-expire-required
+    workload: sharepoint
+    baselineControlId: m365.sharepoint.guest-expire
+    cisRef: 7.2.9
+    frameworks:
+      - { framework: cis-m365, ref: 7.2.9 }
+      - { framework: nis2,     ref: "Art 21(2)(d)" }
+    severity: medium
+    baselinePath: sharepoint.external_user_expiration_required
+    scanWorkload: sharepoint
+    scanPath: tenant.ExternalUserExpirationRequired
+    compareMode: equals
+
+  - id: sharepoint.prevent-external-resharing
+    workload: sharepoint
+    baselineControlId: m365.sharepoint.prevent-resharing
+    cisRef: 7.2.5
+    frameworks: [{ framework: cis-m365, ref: 7.2.5 }]
+    severity: medium
+    baselinePath: sharepoint.prevent_external_users_from_resharing
+    scanWorkload: sharepoint
+    scanPath: tenant.PreventExternalUsersFromResharing
+    compareMode: equals
+
+# =============================================================================
+# Teams (CIS Section 8)
+# =============================================================================
+
+  - id: teams.anonymous-cannot-join
+    workload: teams
+    baselineControlId: m365.teams.anonymous-no-join
+    cisRef: 8.5.1
+    frameworks: [{ framework: cis-m365, ref: 8.5.1 }]
+    severity: medium
+    baselinePath: teams.meeting_policy_global.allow_anonymous_users_to_join_meeting
+    scanWorkload: teams
+    scanPath: meetingPolicyGlobal.AllowAnonymousUsersToJoinMeeting
+    compareMode: equals
+
+  - id: teams.lobby-bypass-restricted
+    workload: teams
+    baselineControlId: m365.teams.lobby-bypass
+    cisRef: 8.5.3
+    frameworks: [{ framework: cis-m365, ref: 8.5.3 }]
+    severity: medium
+    baselinePath: teams.meeting_policy_global.auto_admitted_users
+    scanWorkload: teams
+    scanPath: meetingPolicyGlobal.AutoAdmittedUsers
+    compareMode: equals
+
+  - id: teams.federation-consumer-blocked
+    workload: teams
+    baselineControlId: m365.teams.unmanaged-blocked
+    cisRef: 8.2.2
+    frameworks: [{ framework: cis-m365, ref: 8.2.2 }]
+    severity: medium
+    baselinePath: teams.federation.allow_teams_consumer
+    scanWorkload: teams
+    scanPath: federation.AllowTeamsConsumer
+    compareMode: equals
+
+# =============================================================================
+# Intune (CIS Section 4)
+# =============================================================================
+
+  - id: intune.non-compliant-by-default
+    workload: intune
+    baselineControlId: m365.intune.compliance.gate
+    cisRef: 4.1
+    frameworks:
+      - { framework: cis-m365, ref: 4.1 }
+      - { framework: hipaa,    ref: "§164.310(c)" }
+    severity: high
+    baselinePath: intune.non_compliant_by_default
+    scanWorkload: intune
+    # Heuristic: presence of at least one compliance policy + scope covering users.
+    # Deeper check requires evaluating the tenant's built-in compliance gate flag
+    # which currently requires beta API. Marked partial in v1.
+    scanPath: compliancePolicies
+    compareMode: presentAndNotEmpty
+
+# =============================================================================
+# Power BI (CIS Section 9)
+# =============================================================================
+
+  - id: powerbi.publish-to-web-restricted
+    workload: powerbi
+    baselineControlId: m365.powerbi.publish-to-web
+    cisRef: 9.1.4
+    frameworks: [{ framework: cis-m365, ref: 9.1.4 }]
+    severity: medium
+    baselinePath: powerbi.tenant_settings.publish_to_web
+    scanWorkload: powerbi
+    # The Power BI admin API returns an array of tenant settings; the rule
+    # engine looks up by settingName.
+    scanPath: tenantSettings.tenantSettings[settingName=PublishToWeb].enabled
+    compareMode: tenantSettingDisabled
+
+  - id: powerbi.guest-access-restricted
+    workload: powerbi
+    baselineControlId: m365.powerbi.guest-restricted
+    cisRef: 9.1.1
+    frameworks: [{ framework: cis-m365, ref: 9.1.1 }]
+    severity: medium
+    baselinePath: powerbi.tenant_settings.allow_guest_access
+    scanWorkload: powerbi
+    scanPath: tenantSettings.tenantSettings[settingName=AllowGuestUsersToSignIn].enabled
+    compareMode: tenantSettingDisabled

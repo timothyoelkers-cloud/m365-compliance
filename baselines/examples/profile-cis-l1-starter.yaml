@@ -1,0 +1,152 @@
+version: 0.1.0
+metadata:
+  name: cis-l1-starter
+  kind: profile
+  description: |
+    Starter profile aligned to CIS Microsoft 365 Benchmark Level 1.
+    Covers the Entra / Exchange / SharePoint / Purview controls that
+    deliver the bulk of CIS L1 scoring. Conservative defaults — safe
+    to apply to ring-2 broad tenants. Does not include L2 hardening.
+  applies_to_tenant_classes:
+    - standard-smb
+    - regulated-finance
+    - regulated-health
+    - regulated-critical
+    - tier-0
+
+rollout:
+  rings: [0, 1, 2, 3]
+  notes: Canary-proven; broad rollout cleared.
+
+entra:
+  security_defaults_enabled: false
+  authorization_policy:
+    allow_user_consent_for_risky_apps: false
+    permission_grant_policy_ids_assigned_to_default_user_role:
+      - ManagePermissionGrantsForSelf.microsoft-user-default-low
+
+  authentication_methods_policy:
+    fido2_enabled: true
+    windows_hello_for_business_enabled: true
+    temporary_access_pass_enabled: true
+    sms_enabled: false
+    voice_call_enabled: false
+    authenticator:
+      state: enabled
+      features:
+        number_match: required
+        geographic_context: required
+
+  authentication_strengths:
+    - id: phishing-resistant-mfa
+      displayName: Phishing-resistant MFA
+      allowedCombinations:
+        - fido2
+        - windowsHelloForBusiness
+        - x509CertificateMultiFactor
+
+  conditional_access_policies:
+    - id: cis-l1-ca-001-block-legacy-auth
+      displayName: "CIS L1 — Block legacy authentication"
+      state: enabled
+      conditions:
+        users:
+          include: ["All"]
+          exclude_groups: ["grp-ca-break-glass"]
+        applications:
+          include: ["All"]
+        clientAppTypes: ["exchangeActiveSync", "other"]
+      grantControls:
+        operator: OR
+        builtInControls: ["block"]
+
+    - id: cis-l1-ca-002-mfa-all-users
+      displayName: "CIS L1 — Require MFA for all users"
+      state: enabled
+      conditions:
+        users:
+          include: ["All"]
+          exclude_groups: ["grp-ca-break-glass"]
+        applications:
+          include: ["All"]
+        clientAppTypes: ["all"]
+      grantControls:
+        operator: AND
+        authenticationStrength: phishing-resistant-mfa
+
+    - id: cis-l1-ca-003-admin-mfa
+      displayName: "CIS L1 — Require phishing-resistant MFA for admins"
+      state: enabled
+      conditions:
+        users:
+          include_roles:
+            - Global Administrator
+            - Privileged Role Administrator
+            - User Administrator
+            - SharePoint Administrator
+            - Exchange Administrator
+            - Conditional Access Administrator
+            - Security Administrator
+            - Helpdesk Administrator
+            - Billing Administrator
+            - Application Administrator
+            - Authentication Administrator
+          exclude_groups: ["grp-ca-break-glass"]
+        applications:
+          include: ["All"]
+      grantControls:
+        operator: AND
+        authenticationStrength: phishing-resistant-mfa
+
+    - id: cis-l1-ca-004-block-high-sign-in-risk
+      displayName: "CIS L1 — Block high sign-in risk (P2)"
+      state: enabledForReportingButNotEnforced
+      conditions:
+        users:
+          include: ["All"]
+          exclude_groups: ["grp-ca-break-glass"]
+        applications:
+          include: ["All"]
+        signInRiskLevels: ["high"]
+      grantControls:
+        operator: OR
+        builtInControls: ["block"]
+
+  pim:
+    role_settings:
+      - role: Global Administrator
+        activation_max_duration_hours: 2
+        require_mfa_on_activation: true
+        require_justification: true
+        require_approval: true
+        approvers: ["grp-pim-approvers"]
+      - role: Privileged Role Administrator
+        activation_max_duration_hours: 2
+        require_mfa_on_activation: true
+        require_justification: true
+        require_approval: true
+        approvers: ["grp-pim-approvers"]
+
+  break_glass:
+    group_id: grp-ca-break-glass
+    member_count_expected: 2
+    monitoring_alerts:
+      - alert-bg-signin-any
+      - alert-bg-mfa-exclusion-change
+
+exchange:
+  smtp_auth_disabled_tenant_wide: true
+  modern_auth_required: true
+
+sharepoint:
+  sharing_capability: ExternalUserSharingOnly
+  default_sharing_link_type: Direct
+  require_anonymous_links_expire_in_days: 30
+  prevent_external_users_from_resharing: true
+
+defender:
+  xdr_automated_investigation: fullyAutomated
+  tamper_protection: true
+
+purview:
+  unified_audit_log_enabled: true

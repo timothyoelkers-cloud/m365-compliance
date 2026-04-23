@@ -1,0 +1,157 @@
+version: 1.0.0
+metadata:
+  name: dora-overlay
+  kind: profile
+  description: |
+    DORA (EU Regulation 2022/2554) overlay. Layer on top of cis-l1-l2 for
+    tenants serving an EU financial entity bound by DORA.
+    Stricter MFA posture, extended audit retention, Customer Lockbox + Key,
+    Financial Services Amendment acceptance recorded via tenant tags.
+    Satisfies technical control surface of DORA Art 7, 8, 9, 10, 12 in
+    combination with RTS 2024/1774 (ICT risk management framework).
+
+rollout:
+  rings: [0, 1, 2, 3]
+  notes: |
+    For regulated financial tenants — apply only after CIS L1+L2 pilot has
+    cleared. Apply mode should require a ring-3 manual approval gate.
+
+entra:
+  # DORA Art 9(2)(d) — logical access control. Phishing-resistant MFA for ALL users, not just admins.
+  conditional_access_policies:
+    - id: dora-ca-020-phishing-resistant-all
+      displayName: 'DORA — Phishing-resistant MFA for all users'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['All'] }
+      grantControls: { operator: AND, authenticationStrength: phishing-resistant-mfa }
+      # Replaces cis-l1-ca-002-mfa-all-users at resolve time
+      replaces: [cis-l1-ca-002-mfa-all-users]
+
+    # Art 9(2)(e) — secure networks / encrypted transmission — enforce TLS reciprocity via Entra
+    # (Exchange handles TLS on the wire; CA here restricts legacy connectors routed through Entra)
+
+    # Art 10 — detection of anomalous activities. Tighten risk posture below L2 threshold.
+    - id: dora-ca-021-block-low-medium-high-signin-risk
+      displayName: 'DORA — Block low/medium/high sign-in risk'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['All'] }
+        signInRiskLevels: [low, medium, high]
+      grantControls: { operator: AND, builtInControls: [mfa] }
+      replaces: [cis-l1-ca-004-block-high-sign-in-risk, cis-l2-ca-010-block-medium-high-signin-risk]
+
+  pim:
+    role_settings:
+      # Art 9(4)(f) — business function-level access control. Shorten activation, require approval.
+      - role: Global Administrator
+        activation_max_duration_hours: 1
+        require_mfa_on_activation: true
+        require_justification: true
+        require_approval: true
+        approvers: [grp-pim-approvers]
+      - role: Privileged Role Administrator
+        activation_max_duration_hours: 1
+        require_approval: true
+        approvers: [grp-pim-approvers]
+
+  # Art 8 — asset identification requires current, accurate inventory
+  lifecycle_workflows:
+    joiner_automation: true
+    mover_automation: true
+    leaver_automation: true
+    leaver_grace_hours: 4    # stricter than generic CIS
+
+exchange:
+  # Art 9(2)(c) — authenticity, integrity, confidentiality — Customer Lockbox + Key
+  customer_lockbox_enabled: true
+  customer_key_for_regulated_workloads: true
+  # Art 10 — outbound monitoring for compromised account exfil (v6 focus area)
+  outbound_spam:
+    auto_forwarding_mode: Off
+    recipient_limit_external_per_hour: 200      # tighter than CIS default
+    recipient_limit_per_day: 400
+    action_when_threshold_reached: BlockUser
+    bcc_suspicious_outbound_mail: [security-soc@corp.example]
+    notify_admins_on_outbound_spam: true
+    notify_admin_recipients: [security-soc@corp.example, compliance-officer@corp.example]
+
+sharepoint:
+  # Art 9(2)(c) — stricter external sharing
+  sharing_capability: ExistingExternalUserSharingOnly
+  external_user_expire_in_days: 30
+
+purview:
+  # Art 10 + Art 13 — retention of detection telemetry for learning and reporting
+  unified_audit_log_enabled: true
+  audit_retention_days: 365
+  audit_premium_enabled: true     # E5 — high-value events retained ≥ 1yr by default on Audit Premium
+  # Art 9(2)(c) — confidentiality protection via labels + DLP enforced, not test
+  dlp_policies:
+    - id: dlp-dora-financial-data
+      mode: enforce
+      scope: [exchange, sharepoint, onedrive, teams, endpoint]
+      rules:
+        - id: financial-account-numbers
+          sit: ['EU Debit Card Number', 'IBAN', 'Credit Card Number']
+          min_count: 1
+          confidence: medium
+          actions: [block_external_sharing, notify_user, notify_admins, generate_incident_report]
+  # Art 12 — backup / restoration — native retention + third-party backup posture documented
+  retention_policies:
+    - id: retention-dora-financial-records
+      scope: [exchange, sharepoint, onedrive, teams]
+      retain_days: 2557    # 7 years
+      action_at_end: delete
+  # RTS 2024/1774 — cryptography requirements
+  sensitivity_labels:
+    - id: lbl-dora-financial-confidential
+      name: Financial Confidential (DORA)
+      settings:
+        encryption:
+          enabled: true
+          protection_type: org_wide
+        content_marking:
+          footer: 'FINANCIAL CONFIDENTIAL — Regulated under DORA (EU 2022/2554)'
+
+defender:
+  # Art 10 — detection. Preset Strict must apply to priority accounts in finance.
+  mdo_preset:
+    apply_to_all_users: true
+    strict_protection_for_priority_accounts: true
+  # Art 11 — response. ASR rules to block for DORA tenants (pilot proved).
+  asr_rules:
+    - rule: block_office_apps_creating_child_processes
+      mode: block
+    - rule: block_credential_stealing_lsass
+      mode: block
+    - rule: block_executable_content_from_email_client_and_webmail
+      mode: block
+
+intune:
+  # Art 7 — up-to-date reliable ICT systems. Tighter patch SLA.
+  compliance_policies:
+    - id: comp-win-dora-strict
+      platform: windows
+      os_minimum_version: 'bump-monthly-via-ci'
+      defender_signature_max_age_hours: 8
+      require_bitlocker: true
+      require_secure_boot: true
+      require_code_integrity: true
+      password_minimum_length: 16
+      inactivity_lock_minutes: 3
+      grace_period_hours: 12
+      assignments:
+        include_groups: [grp-intune-all-users]
+      replaces: [comp-win-baseline]
+
+# Tenant tags the portal/orchestrator should enforce for DORA tenants
+tenant_tags:
+  financial_services_amendment_accepted: true
+  data_residency: eu
+  critical_tpp_monitoring: microsoft
+  dora_register_of_information_entry: true
+  rpo_rto_documented: true
+  third_party_backup_provider: required

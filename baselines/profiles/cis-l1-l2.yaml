@@ -1,0 +1,203 @@
+version: 1.0.0
+metadata:
+  name: cis-l1-l2
+  kind: profile
+  description: |
+    CIS Microsoft 365 Foundations Benchmark v6.0.1 — Level 1 + Level 2 profile.
+    Defence-in-depth posture for tenants where data sensitivity or regulatory
+    burden justifies additional friction. Consumers should layer a framework-
+    specific overlay (DORA, NIS 2, HIPAA) on top of this profile.
+
+rollout:
+  rings: [0, 1, 2]
+  notes: |
+    L2 is more intrusive than L1 — never apply directly to broad production
+    without pilot observation. Ring 3 (special / regulated tenants) should
+    consume through an overlay rather than this profile directly.
+
+# This profile is additive over cis-l1: everything declared there is inherited
+# by merge at resolve time. Only L2 extensions and L1 overrides appear below.
+
+entra:
+  # 1.3.3 — external sharing of calendars not available (L2)
+  outlook_calendar_external_sharing: disabled
+  # 1.3.6 — customer lockbox (L2) — also covered under exchange; keep a root-level flag
+  customer_lockbox_enabled: true
+  # 1.3.7 — third-party storage providers in M365 on the web restricted (L2)
+  office_web_third_party_storage: disabled
+  # 1.3.8 — Sways cannot be shared externally (L2)
+  sway_external_sharing: disabled
+  # 1.2.1 — only approved public groups exist (L2 — implemented as a periodic review)
+  public_groups_review:
+    enabled: true
+    cadence: monthly
+    reviewer_group: grp-group-owner-reviewers
+
+  authorization_policy:
+    default_user_role_permissions:
+      # 5.1.4.1 — restrict ability to join devices to Entra (L2)
+      allowed_to_register_devices: adminsAndSelectUsers
+
+  # 5.1.2.2 — third-party integrated applications not allowed (L2)
+  app_governance:
+    third_party_integrated_apps_allowed: false
+    verified_publisher_required: true
+
+  # 5.1.2.5 — hide "stay signed in" (L2)
+  company_branding:
+    show_keep_me_signed_in: false
+    # 5.1.2.6 — LinkedIn account connections disabled (L2)
+    linkedin_connections: disabled
+
+  # 5.1.6.1 — collaboration invitations allowed domains only (L2)
+  external_collaboration:
+    invite_allowed_domains_only: true
+    allowed_domains: []  # populated per tenant override
+
+  conditional_access_policies:
+    # 5.2.2.8 — sign-in risk blocked for medium and high (L2; L1 only blocked high)
+    - id: cis-l2-ca-010-block-medium-high-signin-risk
+      displayName: 'CIS L2 — Block medium or high sign-in risk'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['All'] }
+        signInRiskLevels: [medium, high]
+      grantControls: { operator: OR, builtInControls: [block] }
+
+    # L2 — session controls for web on unmanaged devices
+    - id: cis-l2-ca-011-unmanaged-web-session-restrictions
+      displayName: 'CIS L2 — Unmanaged device web session restrictions'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['Office365'] }
+        platforms:    { include: [all], exclude: [] }
+        device_filter: { mode: exclude, rule: 'device.isCompliant -eq True -or device.trustType -eq "ServerAD"' }
+      sessionControls:
+        applicationEnforcedRestrictions: { isEnabled: true }
+        signInFrequency: { value: 1, type: hours, isEnabled: true }
+        persistentBrowser: { mode: never, isEnabled: true }
+
+    # L2 — block access from countries outside approved list
+    - id: cis-l2-ca-012-country-restriction
+      displayName: 'CIS L2 — Block access from unapproved countries'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass, grp-ca-travel-exempt] }
+        applications: { include: ['All'] }
+        locations:    { include: ['All'], exclude: ['approved-countries'] }
+      grantControls: { operator: OR, builtInControls: [block] }
+
+  # 5.1.4.6 — users restricted from recovering BitLocker keys (L2)
+  bitlocker:
+    user_self_service_recovery: false
+
+  pim:
+    role_settings:
+      # L2 strictness: require approval on more roles
+      - role: Security Administrator
+        require_approval: true
+        approvers: [grp-pim-approvers]
+      - role: Exchange Administrator
+        require_approval: true
+        approvers: [grp-pim-approvers]
+      - role: SharePoint Administrator
+        require_approval: true
+        approvers: [grp-pim-approvers]
+      - role: Authentication Administrator
+        require_approval: true
+        approvers: [grp-pim-approvers]
+
+exchange:
+  # 2.1.1 — Safe Links for Office Apps
+  safe_links_for_office_apps: true
+  # 2.1.4 — Safe Attachments policy enabled
+  safe_attachments:
+    enabled: true
+    action: Block
+    redirect_enabled: false
+  # 2.1.11 — comprehensive attachment filtering
+  comprehensive_attachment_filter: true
+  # 2.7.1 — Customer Lockbox enabled (echoes entra flag)
+  customer_lockbox_enabled: true
+  # 2.7.2 — Customer Key (E5) considered for regulated workloads; declared explicitly in overlays
+
+sharepoint:
+  # 7.2.4 — OneDrive content sharing restricted (L2)
+  onedrive:
+    sharing_capability: ExistingExternalUserSharingOnly
+  # 7.2.6 — SharePoint external sharing tightened
+  sharing_capability: ExistingExternalUserSharingOnly
+  # 7.2.8 — external sharing restricted by security group
+  sharing_domain_restriction_mode: AllowList
+  external_sharing_group_restriction_enabled: true
+
+teams:
+  meeting_policy_global:
+    # 8.5.6 — only organisers can present (L2)
+    designated_presenter_role_mode: EveryoneUserOverride
+    who_can_present: OrganizerOnlyUserOverride
+    # 8.5.8 — external meeting chat off
+    external_meeting_chat: false
+    # 8.5.9 — recording off by default
+    allow_cloud_recording: false
+
+  # 8.1.1 — external file sharing via Teams restricted
+  external_file_sharing:
+    approved_services: [SharePoint, OneDrive]
+
+purview:
+  # L2: sensitivity labels cover PHI / financial / IP categories
+  sensitivity_labels:
+    - id: lbl-highly-confidential
+      name: Highly Confidential
+      settings:
+        encryption:
+          enabled: true
+          protection_type: named_groups
+          rights: [co_owner, co_author, reviewer]
+        content_marking:
+          header: 'HIGHLY CONFIDENTIAL'
+          footer: 'HIGHLY CONFIDENTIAL — DO NOT DISTRIBUTE'
+          watermark: 'HIGHLY CONFIDENTIAL'
+  # L2: auto-labelling promoted to simulation for sensitive SITs
+  auto_label_policies:
+    - id: auto-label-highly-confidential
+      mode: simulation
+      workload: [exchange, sharepoint, onedrive]
+      apply_label: lbl-highly-confidential
+      rules:
+        - content_matches_sensitive_information: [Credit Card Number, EU National Identification Number, U.S. Social Security Number]
+          min_count: 1
+          confidence: high
+
+defender:
+  # L2: ASR rules in audit (promoted to block per ring in apply flow)
+  asr_rules:
+    - rule: block_office_apps_creating_child_processes
+      mode: audit
+    - rule: block_credential_stealing_lsass
+      mode: audit
+    - rule: block_office_apps_injecting_code_into_other_processes
+      mode: audit
+    - rule: block_executable_content_from_email_client_and_webmail
+      mode: audit
+    - rule: block_untrusted_unsigned_usb
+      mode: audit
+    - rule: block_win32_api_calls_from_office_macros
+      mode: audit
+    - rule: block_all_office_apps_from_creating_child_processes
+      mode: audit
+  tamper_protection: enabled
+  attack_simulation:
+    enabled: true
+    cadence: quarterly
+    scope_groups: [grp-all-employees]
+    exclude_groups: [grp-attack-sim-exempt]
+    training_on_fail: mandatory
+
+powerbi:
+  tenant_settings:
+    # 9.1.5 — R / Python visuals disabled (L2)
+    interact_with_and_share_r_and_python: disabled

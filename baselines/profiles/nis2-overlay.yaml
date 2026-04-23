@@ -1,0 +1,132 @@
+version: 1.0.0
+metadata:
+  name: nis2-overlay
+  kind: profile
+  description: |
+    NIS 2 Directive (EU 2022/2555) overlay. Layer on top of cis-l1-l2 for
+    tenants serving EU Essential / Important entities under NIS 2.
+    Operative law is each Member State's transposition — align with national
+    requirements (see skills/frameworks/nis2/national-transpositions.md) and
+    populate tenant-level fields with the Member State's portal URLs.
+
+rollout:
+  rings: [0, 1, 2, 3]
+
+entra:
+  # Art 21(2)(j) — MFA / secure authentication. Phishing-resistant for everyone.
+  conditional_access_policies:
+    - id: nis2-ca-030-phishing-resistant-all
+      displayName: 'NIS 2 — Phishing-resistant MFA for all users'
+      state: enabled
+      conditions:
+        users:        { include: ['All'], exclude_groups: [grp-ca-break-glass] }
+        applications: { include: ['All'] }
+      grantControls: { operator: AND, authenticationStrength: phishing-resistant-mfa }
+      replaces: [cis-l1-ca-002-mfa-all-users]
+
+    # Art 21(2)(d) — supply chain security. Tighter cross-tenant access.
+    - id: nis2-ca-031-cross-tenant-access-tight
+      displayName: 'NIS 2 — Restrict inbound guest access to allow-listed partner tenants'
+      state: enabled
+      conditions:
+        users:        { include_guests_or_external_users: [b2bCollaborationGuest], exclude_groups: [] }
+        applications: { include: ['All'] }
+      grantControls: { operator: AND, builtInControls: [mfa, compliantDevice] }
+
+  # Art 21(2)(i) — access control policies / access reviews. Monthly for privileged.
+  access_reviews:
+    - id: ar-nis2-privileged-monthly
+      scope: privileged_roles
+      cadence: monthly
+      reviewers: [grp-access-review-reviewers]
+      auto_apply: true
+      replaces: [ar-privileged-roles-quarterly]
+
+  # Art 21(2)(i) — HR security. Aggressive leaver.
+  lifecycle_workflows:
+    leaver_grace_hours: 2
+
+  # Art 21(2)(d) — supply chain. Cross-tenant access default: block.
+  cross_tenant_access:
+    default:
+      b2b_collaboration_inbound: { default: blocked }
+      b2b_collaboration_outbound: { default: blocked }
+      b2b_direct_connect_inbound: { default: blocked }
+      b2b_direct_connect_outbound: { default: blocked }
+
+sharepoint:
+  # Art 21(2)(d) — supply chain. Existing-guest-only sharing; allow-list domains required.
+  sharing_capability: ExistingExternalUserSharingOnly
+  sharing_domain_restriction_mode: AllowList
+
+teams:
+  federation:
+    # Art 21(2)(d) — external allow-list explicit; unmanaged blocked.
+    allow_teams_consumer: false
+    allowed_domains: []    # tenant override
+
+purview:
+  # Art 21(2)(b) — incident handling evidentiary foundation. 1 year minimum.
+  unified_audit_log_enabled: true
+  audit_retention_days: 365
+  # Art 21(2)(h) — cryptography / encryption policies
+  sensitivity_labels:
+    - id: lbl-nis2-essential
+      name: Essential Entity Data
+      settings:
+        encryption:
+          enabled: true
+          protection_type: org_wide
+  # Art 21(2)(a) — information system security policies; DLP in enforce
+  dlp_policies:
+    - id: dlp-nis2-operational-data
+      mode: enforce
+      scope: [exchange, sharepoint, onedrive, teams, endpoint]
+      rules:
+        - id: operational-technology-identifiers
+          sit: ['IP Address', 'MAC Address']
+          min_count: 3
+          confidence: medium
+          actions: [notify_user, notify_admins, generate_incident_report]
+
+defender:
+  # Art 21(2)(b) — incident handling. Block ASR.
+  asr_rules:
+    - rule: block_office_apps_creating_child_processes
+      mode: block
+    - rule: block_credential_stealing_lsass
+      mode: block
+    - rule: block_untrusted_unsigned_usb
+      mode: block
+  # Art 21(2)(g) — basic hygiene / training
+  attack_simulation:
+    enabled: true
+    cadence: bimonthly
+    training_on_fail: mandatory
+    scope_groups: [grp-all-employees]
+
+intune:
+  # Art 21(2)(e) — vulnerability handling via patch compliance
+  compliance_policies:
+    - id: comp-win-nis2
+      platform: windows
+      os_minimum_version: 'bump-monthly-via-ci'
+      defender_signature_max_age_hours: 12
+      password_minimum_length: 14
+      inactivity_lock_minutes: 5
+      patch_sla_critical_days: 7
+      assignments:
+        include_groups: [grp-intune-all-users]
+      replaces: [comp-win-baseline]
+
+# Tenant tags for the portal / orchestrator
+tenant_tags:
+  nis2_classification: essential            # essential | important
+  nis2_member_state: DE                     # ISO 3166-1 alpha-2; drives CSIRT + portal routing
+  nis2_national_law: 'NIS-2-Umsetzungsgesetz'
+  nis2_competent_authority: 'BSI'
+  nis2_csirt: 'CERT-Bund'
+  nis2_reporting_portal: 'https://www.bsi.bund.de/'
+  nis2_sector: ''                           # populated per customer (e.g. 'digital infrastructure', 'health', 'energy')
+  nis2_entity_registered_at_csa: false      # flip to true once BSI / national portal registration confirmed
+  management_body_cyber_training_completed: false

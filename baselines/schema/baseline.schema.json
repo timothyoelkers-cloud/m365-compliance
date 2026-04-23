@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/m365-baseline.schema.json",
+  "title": "M365 Tenant Baseline",
+  "description": "Declarative target-state definition for a Microsoft 365 tenant, consumed by workload deployment agents.",
+  "type": "object",
+  "required": ["metadata", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of this baseline document."
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["global-defaults", "profile", "tenant-overrides"]
+        },
+        "description": { "type": "string" },
+        "applies_to_tenant_classes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "rollout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rings": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0, "maximum": 3 }
+        },
+        "ready_from": { "type": "string", "format": "date" },
+        "notes": { "type": "string" }
+      }
+    },
+    "entra": {
+      "$ref": "#/$defs/entra"
+    },
+    "exchange": {
+      "$ref": "#/$defs/exchange"
+    },
+    "sharepoint": {
+      "$ref": "#/$defs/sharepoint"
+    },
+    "teams": {
+      "$ref": "#/$defs/teams"
+    },
+    "defender": {
+      "$ref": "#/$defs/defender"
+    },
+    "intune": {
+      "$ref": "#/$defs/intune"
+    },
+    "purview": {
+      "$ref": "#/$defs/purview"
+    },
+    "powerbi": {
+      "$ref": "#/$defs/powerbi"
+    }
+  },
+  "$defs": {
+    "entra": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "security_defaults_enabled": { "type": "boolean" },
+        "authorization_policy": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "allow_user_consent_for_risky_apps": { "type": "boolean" },
+            "permission_grant_policy_ids_assigned_to_default_user_role": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "authentication_methods_policy": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "conditional_access_policies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/caPolicy" }
+        },
+        "authentication_strengths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "displayName", "allowedCombinations"],
+            "properties": {
+              "id": { "type": "string" },
+              "displayName": { "type": "string" },
+              "allowedCombinations": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "named_locations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "displayName"],
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": "string" },
+              "displayName": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": ["ipNamedLocation", "countryNamedLocation"]
+              }
+            }
+          }
+        },
+        "pim": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "role_settings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["role", "activation_max_duration_hours"],
+                "properties": {
+                  "role": { "type": "string" },
+                  "activation_max_duration_hours": { "type": "number" },
+                  "require_mfa_on_activation": { "type": "boolean" },
+                  "require_justification": { "type": "boolean" },
+                  "require_approval": { "type": "boolean" },
+                  "approvers": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "cross_tenant_access": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "break_glass": {
+          "type": "object",
+          "required": ["group_id"],
+          "properties": {
+            "group_id": { "type": "string" },
+            "member_count_expected": { "type": "integer", "minimum": 1 },
+            "monitoring_alerts": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "caPolicy": {
+      "type": "object",
+      "required": ["id", "state", "conditions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "displayName": { "type": "string" },
+        "state": {
+          "type": "string",
+          "enum": ["enabled", "disabled", "enabledForReportingButNotEnforced"]
+        },
+        "conditions": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "users": { "type": "object" },
+            "applications": { "type": "object" },
+            "clientAppTypes": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "platforms": { "type": "object" },
+            "locations": { "type": "object" },
+            "signInRiskLevels": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "hidden", "none", "unknownFutureValue"]
+              }
+            },
+            "userRiskLevels": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "hidden", "none", "unknownFutureValue"]
+              }
+            }
+          }
+        },
+        "grantControls": {
+          "type": ["object", "null"],
+          "additionalProperties": true
+        },
+        "sessionControls": {
+          "type": ["object", "null"],
+          "additionalProperties": true
+        }
+      }
+    },
+    "exchange": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "smtp_auth_disabled_tenant_wide": { "type": "boolean" },
+        "modern_auth_required": { "type": "boolean" },
+        "anti_phish_policies": { "type": "array" },
+        "anti_malware_policies": { "type": "array" },
+        "safe_links_policies": { "type": "array" },
+        "safe_attachments_policies": { "type": "array" },
+        "transport_rules": { "type": "array" }
+      }
+    },
+    "sharepoint": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "sharing_capability": {
+          "type": "string",
+          "enum": ["Disabled", "ExistingExternalUserSharingOnly", "ExternalUserSharingOnly", "ExternalUserAndGuestSharing"]
+        },
+        "default_sharing_link_type": {
+          "type": "string",
+          "enum": ["None", "Direct", "Internal", "AnonymousAccess"]
+        },
+        "require_anonymous_links_expire_in_days": { "type": "integer" },
+        "prevent_external_users_from_resharing": { "type": "boolean" }
+      }
+    },
+    "teams": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "defender": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "xdr_automated_investigation": {
+          "type": "string",
+          "enum": ["none", "semiAutomated", "fullyAutomated"]
+        },
+        "asr_rules": { "type": "array", "items": { "type": "object" } },
+        "tamper_protection": { "type": "boolean" },
+        "attack_simulation": { "type": "object" }
+      }
+    },
+    "intune": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "compliance_policies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "platform"],
+            "properties": {
+              "id": { "type": "string" },
+              "platform": {
+                "type": "string",
+                "enum": ["windows", "macos", "ios", "android", "linux"]
+              }
+            }
+          }
+        },
+        "configuration_profiles": { "type": "array" },
+        "app_protection_policies": { "type": "array" }
+      }
+    },
+    "purview": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "unified_audit_log_enabled": { "type": "boolean" },
+        "audit_retention_days": { "type": "integer", "minimum": 30 },
+        "sensitivity_labels": { "type": "array" },
+        "label_policies": { "type": "array" },
+        "auto_label_policies": { "type": "array" },
+        "dlp_policies": { "type": "array" },
+        "retention_policies": { "type": "array" },
+        "retention_labels": { "type": "array" },
+        "insider_risk_policies": { "type": "array" },
+        "communication_compliance_policies": { "type": "array" },
+        "information_barriers": { "type": "array" }
+      }
+    },
+    "powerbi": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "tenant_settings": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "publish_to_web": { "type": "string", "enum": ["disabled", "specific_security_groups", "entire_organization"] },
+            "share_content_with_external_users": { "type": "string", "enum": ["disabled", "specific_security_groups", "entire_organization"] },
+            "allow_guest_access": { "type": "boolean" },
+            "export_to_excel": { "type": "string" },
+            "block_resource_key_auth": { "type": "boolean" },
+            "service_principal_api_access": { "type": "string", "enum": ["disabled", "specific_security_groups", "all"] },
+            "shareable_links": { "type": "string" },
+            "sensitivity_labels_for_content": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}
