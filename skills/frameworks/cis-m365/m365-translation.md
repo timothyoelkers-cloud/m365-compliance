@@ -6,7 +6,10 @@ For every recommendation, this file records the canonical way to read current st
 
 ## Block format
 
-```markdown
+Each recommendation uses this shape (the nested triple-backticks are illustrative —
+ignore markdownlint's confusion around the example template):
+
+````markdown
 ### <Rec ID> — <short title>
 **Profile:** L1|L2
 **Workload:** Entra|Exchange|SharePoint|OneDrive|Teams|PowerBI
@@ -29,7 +32,7 @@ For every recommendation, this file records the canonical way to read current st
 ```
 
 **Notes:** licence dependencies, tenant-class caveats, known drift sources.
-```
+````
 
 ---
 
@@ -113,6 +116,7 @@ Update-MgPolicyAuthenticationMethodPolicyAuthenticationMethodConfiguration `
 **Graph scopes:** `Policy.ReadWrite.Authorization`
 
 Two accepted postures:
+
 - `permissionGrantPoliciesAssigned = []` (no user consent)
 - `permissionGrantPoliciesAssigned = ["ManagePermissionGrantsForSelf.microsoft-user-default-low"]` (low-risk verified publishers only)
 
@@ -174,6 +178,7 @@ $count = $members.Count
 Read via Graph `/roleManagement/directory/roleAssignmentSchedulePolicies`.
 
 Each privileged role should have:
+
 - Max activation duration ≤ 2h (1.4.6)
 - MFA on activation (1.4.4)
 - Justification required (1.4.4)
@@ -449,6 +454,7 @@ POST https://api.powerbi.com/v1.0/myorg/admin/tenantsettings/{settingName}
 ```
 
 Key settings to target:
+
 - `CreateWorkspaces` → restricted to specific group
 - `PublishToWeb` → disabled
 - `ExportDataToExcel` → restricted on sensitive workspace groups

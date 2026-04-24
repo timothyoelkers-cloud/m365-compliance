@@ -13,6 +13,7 @@ Specialist subagent for the three collaboration workloads that sit next to ident
 **This agent owns:**
 
 ### Exchange Online (non-Defender)
+
 - Tenant-wide auth protocols: SMTP AUTH disabled, Basic Auth policies, POP/IMAP defaults
 - Mail flow: accepted domains, remote domains, transport rules (not Defender-scoped), connectors
 - DKIM signing config
@@ -23,6 +24,7 @@ Specialist subagent for the three collaboration workloads that sit next to ident
 - Address book policies (where tenant-scoped)
 
 ### SharePoint Online
+
 - Tenant SharingCapability, default link type, default link permission
 - Anonymous link expiry, external user expiry, re-sharing restrictions
 - Sharing domain allow/block lists
@@ -35,6 +37,7 @@ Specialist subagent for the three collaboration workloads that sit next to ident
 - Site-collection-level overrides where the baseline declares a specific site
 
 ### Microsoft Teams
+
 - Tenant federation configuration (allowed/blocked domains, allow Teams consumer)
 - Tenant-wide meeting policies (anonymous/guests, lobby, recording, screen sharing, external participant controls)
 - Tenant-wide messaging policies

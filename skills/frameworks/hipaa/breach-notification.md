@@ -25,12 +25,14 @@ Business Associates must notify Covered Entities "without unreasonable delay and
 ## M365 evidence flow
 
 ### Detection
+
 - Defender XDR incidents (BEC, data-theft alerts).
 - Purview DLP high-severity alerts on PHI sensitivity labels or trainable classifiers.
 - Entra risky sign-ins / atypical travel.
 - Third-party tenant security monitoring (e.g. Sentinel).
 
 ### Assessment (risk determination against the 4 factors)
+
 - Scope: which mailboxes/sites accessed — Purview Content Search, Exchange audit.
 - Volume/type of PHI: classifier hits from Purview; sensitivity label inventory of impacted items.
 - Actor identity: Entra sign-in logs, token source, IP geolocation.
@@ -38,10 +40,12 @@ Business Associates must notify Covered Entities "without unreasonable delay and
 - Mitigation: encryption status of affected items (encrypted-at-rest is table stakes; sensitivity-label encryption with rights not shared to actor can reach the safe harbour).
 
 ### Decision outcomes
+
 1. **Not a breach** (permitted disclosure, or 4-factor low-probability conclusion). Document decision and retain evidence.
 2. **Breach requiring notification.** Proceed to notification workflow.
 
 ### Notification artefacts
+
 - Individual notice — content required by §164.404: description, types of info, steps individuals should take, what covered entity is doing, contact info. Templated, retained per tenant.
 - HHS notice via the OCR breach portal.
 - Media notice (prominent media outlet in the affected jurisdiction).

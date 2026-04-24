@@ -1,0 +1,40 @@
+# Pragmatic markdownlint config for technical documentation.
+# Defaults too strict for tables, long prose lines, and mixed emphasis.
+# Rule refs: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+config:
+  # Line length — tables + wide prose; technical docs don't need 80 cols.
+  MD013: false
+  # Inline HTML — we use it for literal placeholder tokens like <Rec ID>.
+  MD033: false
+  # Duplicate headings — nested sections may repeat e.g. "Notes" in each block.
+  MD024: false
+  # First line must be a top-level heading — some files (LICENSE, snippets) don't.
+  MD041: false
+  # Emphasis used as heading — we use **Bold:** labels intentionally.
+  MD036: false
+  # Fenced code block language — JSON/YAML/PS often self-evident from context.
+  MD040: false
+  # Table column style — we use `|---|---|---|` consistently; enforcing "compact"
+  # vs "leading_trailing" adds churn without value.
+  MD060: false
+  # Ordered list item prefix — 1/2/3 vs 1/1/1 both readable; don't enforce.
+  MD029: false
+
+  # Rules kept ON (the actual hygiene signals):
+  # MD001 heading-increment   — avoid skipping heading levels
+  # MD009 trailing whitespace — real bug source
+  # MD022 blanks-around-headings
+  # MD031 blanks-around-fences
+  # MD032 blanks-around-lists
+  # MD034 no-bare-urls
+  # MD039 no-space-in-links
+  # MD042 no-empty-links
+  # MD047 single-trailing-newline
+
+globs:
+  - "**/*.md"
+ignores:
+  - "node_modules/**"
+  - ".ci-tools/**"
+  - "LICENSE"

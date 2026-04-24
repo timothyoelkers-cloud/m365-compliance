@@ -16,6 +16,7 @@ The first time you run this stack against a real tenant, expect cmdlet drift —
 
 - **PowerShell 7.4+** (`pwsh --version`).
 - Modules:
+
   ```powershell
   Install-Module Microsoft.Graph                          -Scope CurrentUser -AcceptLicense -Force
   Install-Module ExchangeOnlineManagement                 -Scope CurrentUser -AcceptLicense -Force
@@ -25,6 +26,7 @@ The first time you run this stack against a real tenant, expect cmdlet drift —
   Install-Module powershell-yaml                          -Scope CurrentUser -AcceptLicense -Force
   Install-Module PSScriptAnalyzer                         -Scope CurrentUser -AcceptLicense -Force  # CI parity
   ```
+
 - `npx` on PATH (Node.js 20+) if you want `-Validate` schema checks.
 - Approximate disk: 100–500 MB per scan bundle for large tenants; a few MB for a dev tenant.
 
@@ -106,6 +108,7 @@ jq '.authMethodsPolicy | keys' evidence/smoke/entra.json
 ```
 
 Look for:
+
 - `authorizationPolicy` present and non-null
 - `authMethodsPolicy` with each method present (state: enabled/disabled)
 - `privilegedRoles` array non-empty (at least Global Administrator)
@@ -230,7 +233,7 @@ After a smoke test, update this file's "Known cmdlet drift" section below with a
 
 | Module | Version | Symptom | Fix |
 |---|---|---|---|
-| _populated by first smoke test_ | | | |
+| *populated by first smoke test* | | | |
 
 ## Teardown
 

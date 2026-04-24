@@ -80,7 +80,7 @@ entra:
       state: enabled
       conditions:
         users:       { include: ['All'], exclude_groups: [grp-ca-break-glass] }
-        applications:{ include: ['All'] }
+        applications: { include: ['All'] }
         clientAppTypes: [exchangeActiveSync, other]
       grantControls: { operator: OR, builtInControls: [block] }
 

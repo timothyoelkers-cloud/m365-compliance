@@ -31,6 +31,7 @@ The Privacy Rule is primarily operational. M365 supports it via:
 | Complaints tracking | SharePoint list + Power Automate workflow or third-party case management |
 
 ## De-identification
+
 - §164.514(b) "Safe Harbor" requires removal of 18 identifier categories.
 - M365 does not provide automated de-identification; Purview can help **identify** PII/PHI via trainable classifiers or out-of-the-box types, but removal is a downstream process (SQL, scripts, or specialised tooling).
 

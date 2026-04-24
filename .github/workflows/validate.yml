@@ -11,39 +11,68 @@ permissions:
 
 jobs:
   schema:
-    name: Baseline & evidence JSON schema validation
+    name: Baseline, tenant & evidence JSON schema validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install ajv-cli
-        run: npm install -g ajv-cli ajv-formats js-yaml
-      - name: Convert YAML baselines to JSON (in-memory) and validate
+      - name: Install ajv-cli + js-yaml (project-local for stable resolution)
+        run: |
+          mkdir -p .ci-tools
+          (cd .ci-tools && npm init -y >/dev/null && npm install --silent ajv@8 ajv-cli ajv-formats js-yaml)
+      - name: Validate baselines against baseline.schema.json
         shell: bash
         run: |
           set -euo pipefail
-          SCHEMA="baselines/schema/baseline.schema.json"
+          AJV=.ci-tools/node_modules/.bin/ajv
+          SCHEMA="$PWD/baselines/schema/baseline.schema.json"
           FAIL=0
-          # Loop over every yaml file under baselines/ except schema/
           while IFS= read -r -d '' f; do
-            echo "::group::Validating $f"
+            echo "::group::baseline-schema  $f"
             node -e "
-              const yaml = require('js-yaml');
+              const yaml = require('$PWD/.ci-tools/node_modules/js-yaml');
               const fs = require('fs');
               const doc = yaml.load(fs.readFileSync('$f','utf8'));
               fs.writeFileSync('/tmp/_baseline.json', JSON.stringify(doc, null, 2));
             "
-            if ! ajv validate -s "$SCHEMA" -d /tmp/_baseline.json --spec=draft2020 -c ajv-formats --strict=false; then
-              echo "::error file=$f::schema validation failed"
+            if ! ( cd .ci-tools && "$AJV" validate -s "$SCHEMA" -d /tmp/_baseline.json --spec=draft2020 -c ajv-formats --strict=false ); then
+              echo "::error file=$f::baseline schema validation failed"
               FAIL=1
             fi
             echo "::endgroup::"
-          done < <(find baselines -type f \( -name '*.yaml' -o -name '*.yml' \) ! -path 'baselines/schema/*' -print0)
-          # Also sanity-check the evidence schema compiles
-          ajv compile -s baselines/schema/evidence-bundle.schema.json --spec=draft2020 -c ajv-formats
+          done < <(find baselines -type f \( -name '*.yaml' -o -name '*.yml' \) \
+                   ! -path 'baselines/schema/*' \
+                   ! -path 'baselines/tenants/*/tenant.yaml' -print0)
           exit $FAIL
+      - name: Validate tenant registry docs against tenant.schema.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          AJV=.ci-tools/node_modules/.bin/ajv
+          SCHEMA="$PWD/baselines/schema/tenant.schema.json"
+          FAIL=0
+          while IFS= read -r -d '' f; do
+            echo "::group::tenant-schema  $f"
+            node -e "
+              const yaml = require('$PWD/.ci-tools/node_modules/js-yaml');
+              const fs = require('fs');
+              const doc = yaml.load(fs.readFileSync('$f','utf8'));
+              fs.writeFileSync('/tmp/_tenant.json', JSON.stringify(doc, null, 2));
+            "
+            if ! ( cd .ci-tools && "$AJV" validate -s "$SCHEMA" -d /tmp/_tenant.json --spec=draft2020 -c ajv-formats --strict=false ); then
+              echo "::error file=$f::tenant schema validation failed"
+              FAIL=1
+            fi
+            echo "::endgroup::"
+          done < <(find baselines/tenants -type f -name 'tenant.yaml' -print0)
+          exit $FAIL
+      - name: Compile evidence bundle schema
+        shell: bash
+        run: |
+          AJV=.ci-tools/node_modules/.bin/ajv
+          ( cd .ci-tools && "$AJV" compile -s "$PWD/../baselines/schema/evidence-bundle.schema.json" --spec=draft2020 -c ajv-formats )
 
   control-map:
     name: Control map CSV sanity

@@ -9,16 +9,20 @@ Microsoft is the provider; the financial entity is the customer. Chapter V regul
 ## Customer-side obligations (summary)
 
 ### Art 28 — Principles
+
 - Proportionate risk management of TPP relationships; integrated into ICT risk framework.
 
 ### Art 28(3) — Register of information
+
 - Maintain register of all ICT TPP contractual arrangements.
 - Register format is defined by Implementing Technical Standards (ITS Art 28(9)). Report annually to competent authority.
 
 ### Art 29 — Preliminary assessment of concentration risk
+
 - Before contracting, assess concentration risk (single-provider, geographic, intra-group).
 
 ### Art 30 — Contractual provisions (mandatory list)
+
 - Full description of functions and services.
 - Locations where functions are performed and data processed.
 - Provisions on data protection, availability, authenticity, integrity, confidentiality.
@@ -32,6 +36,7 @@ Microsoft is the provider; the financial entity is the customer. Chapter V regul
 Additional requirements for **contracts supporting critical or important functions** (Art 30(3)).
 
 ### Art 30(5) — Termination rights
+
 - Mandatory termination rights on: material breach; significant changes; weaknesses in TPP's ICT risk management; supervisory impediments.
 
 ## Microsoft-specific artefacts

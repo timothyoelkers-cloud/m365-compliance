@@ -29,12 +29,14 @@ Top-level repo tag (`vX.Y.Z`) cuts a coordinated release across artefacts for po
 ## Before opening a PR
 
 1. Run CI locally where practical:
+
    ```bash
    # baseline schema validation
    npx -y ajv-cli validate -s baselines/schema/baseline.schema.json -d <your baseline> --spec=draft2020 -c ajv-formats --strict=false
    # PS script analysis
    pwsh -c "Invoke-ScriptAnalyzer -Path scripts -Recurse -Severity @('Error','Warning')"
    ```
+
 2. If adding a new framework skill, add at least one mapping row to `skills/mapping/control-map/map.csv`.
 3. If changing a populated baseline, bump the `version:` field and note the change in the PR body.
 4. If adding/changing a scan script, bump the `producedBy` version string in its JSON output (e.g. `Invoke-EntraScan.ps1@1.1.0`).

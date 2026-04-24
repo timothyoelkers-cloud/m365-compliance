@@ -121,6 +121,7 @@ DORA's detail lives in Level 2 texts published as Commission Delegated / Impleme
 Additional RTS on TLPT (Art 26(11)) and subcontracting (Art 30(5)) were published through 2024–2025; populate [articles.md](articles.md) with the exact regulation numbers as engagements arise.
 
 Sources for Level 2 tracking:
+
 - <https://ec.europa.eu/finance/docs/level-2-measures/dora-regulation-rts--2024-1532_en.pdf>
 - <https://www.esma.europa.eu/press-news/esma-news/esas-publish-first-set-rules-under-dora-ict-and-third-party-risk-management>
 - <https://www.regulation-dora.eu/rts>

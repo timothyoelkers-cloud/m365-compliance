@@ -189,7 +189,7 @@ defender:
       mode: audit
     - rule: block_all_office_apps_from_creating_child_processes
       mode: audit
-  tamper_protection: enabled
+  tamper_protection: true
   attack_simulation:
     enabled: true
     cadence: quarterly

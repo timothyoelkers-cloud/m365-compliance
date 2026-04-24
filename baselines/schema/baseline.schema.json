@@ -12,6 +12,33 @@
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
       "description": "Semantic version of this baseline document."
     },
+    "break_glass": {
+      "$ref": "#/$defs/breakGlass",
+      "description": "Tenant break-glass posture. Allowed at root for global/break-glass.yaml; can also live under entra.break_glass for profile-level overrides."
+    },
+    "tenant_tags": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Free-form tag map used by overlays to drive orchestrator gates (e.g. baa_accepted, financial_services_amendment_accepted). Tags are non-normative for tenant config; orchestrator enforces them as preconditions."
+    },
+    "deviations": {
+      "type": "array",
+      "description": "Tenant-level documented deviations from the merged baseline (typically appears in overrides.yaml).",
+      "items": {
+        "type": "object",
+        "required": ["baseline_control_id", "justification", "owner"],
+        "additionalProperties": true,
+        "properties": {
+          "baseline_control_id": { "type": "string" },
+          "baseline_id":         { "type": "string" },
+          "deviation":           { "type": "string" },
+          "justification":       { "type": "string" },
+          "owner":               { "type": "string" },
+          "expiry":              { "type": "string" },
+          "approved_by":         { "type": "string" }
+        }
+      }
+    },
     "metadata": {
       "type": "object",
       "required": ["name", "kind"],
@@ -69,7 +96,7 @@
   "$defs": {
     "entra": {
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "security_defaults_enabled": { "type": "boolean" },
         "authorization_policy": {
@@ -130,7 +157,7 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "required": ["role", "activation_max_duration_hours"],
+                "required": ["role"],
                 "properties": {
                   "role": { "type": "string" },
                   "activation_max_duration_hours": { "type": "number" },
@@ -161,10 +188,21 @@
         }
       }
     },
+    "breakGlass": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "group_id":              { "type": "string" },
+        "standard_group_id":     { "type": "string" },
+        "expected_member_count": { "type": "integer", "minimum": 1 },
+        "member_count_expected": { "type": "integer", "minimum": 1 },
+        "monitoring_alerts":     { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "caPolicy": {
       "type": "object",
       "required": ["id", "state", "conditions"],
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "id": { "type": "string" },
         "displayName": { "type": "string" },

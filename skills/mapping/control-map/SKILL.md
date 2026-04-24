@@ -58,21 +58,25 @@ The 4 rows above are one control's mapping signature. Multiply this shape for ev
 ## Operations
 
 ### Add a new control
+
 1. Append a row per framework to [map.csv](map.csv) and [map.md](map.md).
 2. If the control is baseline, add it to the relevant `baselines/examples/*.yaml` profile.
 
 ### Add a new framework
+
 1. Create the framework skill under `skills/frameworks/<name>/`.
 2. Walk the existing control catalogue and add one row per applicable control to the map.
 3. Identify framework requirements with no covering control — these are gaps; open tickets.
 
 ### Gap analysis against a target framework set
+
 1. Filter map to the union of `framework` values in scope.
 2. For each requirement reference, check at least one `primary` or the sum of `partial` rows would cover it.
 3. Produce a gap report: framework references with **no coverage** or only **contributes-to** rows.
 4. Hand to the relevant framework skill for process/organisational remediation.
 
 ### Evidence packaging for audit
+
 1. Auditor names the framework (e.g. NIS 2 Art 21(2)(j)).
 2. Filter map to that `framework_ref`.
 3. For each row, pull the current `evidence_artefact` from the tenant.

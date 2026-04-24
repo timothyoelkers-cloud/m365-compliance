@@ -75,6 +75,7 @@ Get-MgAuditLogSignIn -Filter "createdDateTime ge $startDate and ..." -All
 ```
 
 Produce a report: users who would have been blocked, challenged, or allowed. Flag:
+
 - Any blocked sign-in for a break-glass account → **STOP**; baseline or exclusion is wrong.
 - Any service account routinely blocked → flag for caller review; likely needs app identity / workload identity federation, not user MFA.
 

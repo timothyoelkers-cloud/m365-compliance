@@ -19,6 +19,7 @@ Directive (EU) 2022/2555. Transposition deadline **17 October 2024**. Replaces t
 NIS 2 covers **18 sectors** split between "essential" (Annex I) and "important" (Annex II).
 
 **Essential (Annex I) — 11 sectors:**
+
 - Energy (electricity, district heating/cooling, oil, gas, hydrogen)
 - Transport (air, rail, water, road)
 - Banking
@@ -32,6 +33,7 @@ NIS 2 covers **18 sectors** split between "essential" (Annex I) and "important" 
 - Space
 
 **Important (Annex II) — 7 sectors:**
+
 - Postal and courier services
 - Waste management
 - Manufacture/production/distribution of chemicals
@@ -47,6 +49,7 @@ Entities may be designated irrespective of size by national authorities where di
 ## Obligations summary
 
 ### Art 20 — Governance
+
 - Management bodies **approve** cybersecurity risk-management measures.
 - Management bodies **supervise** implementation.
 - Management bodies are **personally accountable** for non-compliance; may bear personal liability.
@@ -55,6 +58,7 @@ Entities may be designated irrespective of size by national authorities where di
 Art 20 is a substantial shift from NIS 1. Failure is enforced at the individual manager level.
 
 ### Art 21 — Cybersecurity risk-management measures
+
 Minimum measures (Art 21(2)) — ten broad areas:
 
 | Ref | Measure |
@@ -86,9 +90,11 @@ The reporting cadence that everyone cites:
 "Significant incident" — causes severe operational disruption or financial loss to the entity, or is capable of affecting other persons by causing considerable material or non-material damage.
 
 ### Art 24 — Use of certified ICT products, services, processes
+
 - Member States may require use of certified ICT (EUCC, EUCS once adopted, etc.).
 
 ### Art 32–35 — Supervision and enforcement
+
 - Enforcement powers differ for essential vs important entities (proactive vs ex-post).
 - Administrative fines: up to €10m or 2% of global annual turnover (essential entities) / €7m or 1.4% (important).
 - Suspension of management or temporary ban on individuals in senior management roles — a live enforcement lever.

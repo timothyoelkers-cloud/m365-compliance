@@ -21,6 +21,7 @@
 | **Poland** | ⏳ Not yet transposed (nearing completion) | (draft amendment to Act on National Cybersecurity System) | Pending | Ministry of Digital Affairs | CERT Polska |
 
 Status notes:
+
 - "✅ Transposed" means the national law has been enacted and applies (or has a published effective date in the near future).
 - "⏳ Not yet transposed" means primary legislation has not been enacted as of April 2026. EC infringement proceedings are active for most of these.
 - "Nearing completion" indicates a draft bill is in late-stage parliamentary process.

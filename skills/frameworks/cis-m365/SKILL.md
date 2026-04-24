@@ -57,6 +57,7 @@ Focus areas for additions (13 new controls, 3 retired):
 - **Identity governance** — guest lifecycle, privilege reviews to reduce privilege creep.
 
 Sources for this metadata:
+
 - <https://www.cisecurity.org/benchmark/microsoft_365>
 - <https://www.reco.ai/blog/cis-microsoft-365-v6-benchmark-guide>
 

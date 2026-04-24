@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/m365-tenant-registry.schema.json",
+  "title": "M365 Tenant Registry Entry",
+  "description": "Per-tenant registration document (baselines/tenants/<id>/tenant.yaml). Distinct from baseline.schema.json — describes the tenant identity, auth, licensing, framework binding, and rollout state, not the configuration target.",
+  "type": "object",
+  "required": ["tenant"],
+  "additionalProperties": false,
+  "properties": {
+    "tenant": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id":             { "type": "string", "pattern": "^[0-9a-fA-F-]{36}$" },
+        "name":           { "type": "string" },
+        "display_name":   { "type": "string" },
+        "region":         { "type": "string" },
+        "jurisdictions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 2, "maxLength": 3 }
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": true,
+      "properties": {
+        "mode": { "type": "string", "enum": ["app", "gdap", "hybrid"] },
+        "app_registration": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "client_id":                    { "type": "string" },
+            "certificate_thumbprint_key":   { "type": "string" },
+            "client_secret_key_vault_uri":  { "type": "string" }
+          }
+        },
+        "gdap": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "partner_tenant_id":                    { "type": "string" },
+            "partner_client_id":                    { "type": "string" },
+            "partner_certificate_thumbprint_key":   { "type": "string" },
+            "relationship_id":                      { "type": "string" }
+          }
+        }
+      }
+    },
+    "licensing": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "tier":   { "type": "string" },
+        "addons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "frameworks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "profiles": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9._-]+(@.*)?$" }
+    },
+    "break_glass": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "group_id":              { "type": "string" },
+        "member_count_expected": { "type": "integer", "minimum": 1 },
+        "monitoring_alerts":     { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "rollout": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "ring":               { "type": "integer", "minimum": 0, "maximum": 3 },
+        "pinned_baseline_sha":{ "type": "string" }
+      }
+    },
+    "tags":         { "type": "object", "additionalProperties": true },
+    "attestations": { "type": "object", "additionalProperties": true }
+  }
+}

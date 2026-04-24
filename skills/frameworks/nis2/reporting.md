@@ -19,14 +19,17 @@ A "significant incident" under Art 23(3) is one that:
 | Final report | ≤ 1 month after notification |
 
 ### Early warning content (24h)
+
 - Whether suspected to be caused by unlawful or malicious acts.
 - Whether could have cross-border impact.
 
 ### Incident notification content (72h)
+
 - Initial assessment of severity and impact.
 - Indicators of compromise, where available.
 
 ### Final report content (1 month)
+
 - Detailed description of the incident, its severity and impact.
 - Type of threat / root cause.
 - Mitigation measures applied and ongoing.
@@ -35,17 +38,20 @@ A "significant incident" under Art 23(3) is one that:
 ## M365 evidence supply — per phase
 
 ### Awareness → 24h window
+
 - Defender XDR incident detail (impacted users, devices, attack story).
 - Entra risky sign-in report for affected IDs.
 - Initial Unified Audit Log query over the incident window.
 
 ### 24h → 72h window
+
 - Refined timeline.
 - Data exfil assessment: Purview DLP hits, SharePoint/OneDrive access logs, Exchange transport rule hits.
 - Lateral movement indicators: Defender for Identity, Entra sign-in anomalies.
 - Containment actions logged: CA policy updates, user token revocations, device compliance flips.
 
 ### 72h → 1 month window
+
 - Full forensic bundle.
 - Root cause (phishing vector? credential theft? exploited vuln? misconfig?).
 - Permanent remediation: CA hardening, authentication method policy changes, revised Intune baseline.
@@ -54,6 +60,7 @@ A "significant incident" under Art 23(3) is one that:
 ## National reporting portals
 
 Each Member State designates:
+
 - **CSIRT** — receives the notification.
 - **Competent authority** — supervisory body.
 

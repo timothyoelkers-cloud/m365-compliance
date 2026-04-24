@@ -39,6 +39,7 @@ A tenant without a signed BAA cannot lawfully process ePHI using Microsoft servi
 ## Security Rule structure
 
 ### §164.308 — Administrative Safeguards
+
 - Security Management Process (risk analysis, risk management, sanction policy, information system activity review)
 - Assigned Security Responsibility
 - Workforce Security (authorisation, workforce clearance, termination procedures)
@@ -50,12 +51,14 @@ A tenant without a signed BAA cannot lawfully process ePHI using Microsoft servi
 - Business Associate Contracts
 
 ### §164.310 — Physical Safeguards
+
 - Facility Access Controls (contingency operations, security plan, access control/validation, maintenance records)
 - Workstation Use
 - Workstation Security
 - Device and Media Controls (disposal, media re-use, accountability, backup/storage)
 
 ### §164.312 — Technical Safeguards (the most M365-relevant section)
+
 - **§164.312(a)(1) Access Control:**
   - Unique User Identification (required)
   - Emergency Access Procedure (required)
@@ -70,10 +73,12 @@ A tenant without a signed BAA cannot lawfully process ePHI using Microsoft servi
   - Encryption (addressable)
 
 ### §164.314 — Organizational Requirements
+
 - Business Associate Contracts content
 - Group Health Plan requirements
 
 ### §164.316 — Policies, Procedures, and Documentation Requirements
+
 - Policies / procedures documented; retain 6 years from later of creation or last effective date.
 
 ## "Required" vs "Addressable"
@@ -99,20 +104,24 @@ The 2025 NPRM proposes removing the distinction — making all safeguards requir
 | (e)(1) Transmission Security | TLS enforcement; Office Message Encryption; S/MIME |
 
 ### Administrative (§164.308) — M365 partial support
+
 - Information system activity review → Purview Audit KQL dashboards, Secure Score trend.
 - Workforce security / access management → Entra lifecycle workflows, Access Reviews, PIM.
 - Security incident procedures → Defender XDR workflow, documented response plan.
 - Contingency plan (backup, DR) → third-party M365 backup, documented BC/DR, tested.
 
 ### Physical (§164.310) — largely out of tenant scope
+
 - Facility controls are the hosting provider's (Microsoft attests through ISO 27001, SOC, HITRUST on the Service Trust Portal).
 - Device controls (workstation security, disposal) are handled via Intune: compliance, encryption, remote wipe, conditional access based on compliance.
 
 ### Privacy Rule — process-heavy, M365 configurable where relevant
+
 - Minimum necessary: sensitivity-label-driven access; Purview Information Barriers for divisional segregation.
 - Right of access (§164.524) / amendment (§164.526) / accounting of disclosures (§164.528) → operational processes; M365 provides audit trails that evidence compliance.
 
 ### Breach Notification — M365 supplies evidence, organisation runs the process
+
 - Detection: Defender, Purview DLP, Entra risk detections.
 - Forensics: Unified Audit Log, mailbox audit, SharePoint audit.
 - 60-day deadline from discovery to individual notification; contemporaneous HHS notification for breaches affecting 500+ individuals.
