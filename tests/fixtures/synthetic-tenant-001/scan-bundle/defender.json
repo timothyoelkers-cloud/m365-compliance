@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "capturedAt": "2026-04-25T10:00:00Z",
+  "producedBy": "Invoke-DefenderScan.ps1@1.0.0-fixture",
+
+  "secureScore": {
+    "CurrentScore":     412,
+    "MaxScore":         600,
+    "ActiveUserCount":  15,
+    "LicensedUserCount": 25
+  },
+  "secureScoreHistory":   [],
+  "secureScoreProfiles":  [],
+  "alertPoliciesGraph":   [],
+
+  "defenderForCloudApps": { "note": "fixture — MDA detail not exercised by current rules" },
+  "defenderForIdentity":  { "note": "fixture — MDI detail not exercised by current rules", "riskyUserCount": 0 }
+}

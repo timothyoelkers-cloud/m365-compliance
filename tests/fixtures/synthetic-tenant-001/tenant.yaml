@@ -1,0 +1,42 @@
+# Synthetic tenant for end-to-end fixture testing.
+# Tenant ID is in the documentation 00000000-0000-0000-0000-* range; safe.
+# Used by tests/end-to-end.Tests.ps1 and tests/verify_fixture.py.
+
+tenant:
+  id:           "00000000-0000-0000-0000-aaaaaaaaaaaa"
+  name:         "Synthetic Test Tenant"
+  display_name: "Synthetic Test Tenant (fixture)"
+  region:       "EU-North"
+  jurisdictions: [GB]
+
+auth:
+  mode: app
+  app_registration:
+    client_id:                   "00000000-0000-0000-0000-bbbbbbbbbbbb"
+    certificate_thumbprint_key:  "fixture-cert-thumbprint"
+
+licensing:
+  tier: E5
+  addons: ["Microsoft 365 E5 Compliance"]
+
+frameworks:
+  - cis-m365
+  - nis2-important
+
+profiles:
+  - cis-l1@~1.0      # L1 baseline (must come before L2 — L2 is additive)
+  - cis-l1-l2@~1.0   # L2 hardening on top
+  - nis2-overlay@~1.0 # NIS 2 overlay (replaces some CA policies)
+
+break_glass:
+  group_id: "grp-ca-break-glass"
+  member_count_expected: 2
+
+rollout:
+  ring: 0   # canary — fixtures shouldn't ride the broad rollout
+  pinned_baseline_sha: ""
+
+tags:
+  owner:       "fixture@example.invalid"
+  environment: "test-fixture"
+  tier:        "synthetic"

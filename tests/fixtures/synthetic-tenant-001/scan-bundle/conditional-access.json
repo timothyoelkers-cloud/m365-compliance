@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "capturedAt": "2026-04-25T10:00:00Z",
+  "producedBy": "Invoke-ConditionalAccessScan.ps1@1.0.0-fixture",
+
+  "policies": [
+    {
+      "id": "ca-001",
+      "displayName": "CIS L1 — Block legacy authentication",
+      "state": "enabled",
+      "conditions": {
+        "users": {
+          "includeUsers": ["All"],
+          "excludeGroups": ["grp-ca-break-glass"]
+        },
+        "applications": { "includeApplications": ["All"] },
+        "clientAppTypes": ["exchangeActiveSync", "other"]
+      },
+      "grantControls": { "operator": "OR", "builtInControls": ["block"] }
+    },
+    {
+      "id": "ca-002",
+      "displayName": "CIS L1 — Require MFA for all users",
+      "state": "enabledForReportingButNotEnforced",
+      "conditions": {
+        "users": {
+          "includeUsers": ["All"],
+          "excludeGroups": ["grp-ca-break-glass"]
+        },
+        "applications": { "includeApplications": ["All"] },
+        "clientAppTypes": ["all"]
+      },
+      "grantControls": { "operator": "AND", "builtInControls": ["mfa"] }
+    }
+  ],
+
+  "namedLocations": [],
+  "authStrengthPolicies": [],
+
+  "invariants": {
+    "breakGlassExcludedFromAllUserBlocking": [
+      { "policyId": "ca-001", "excluded": true }
+    ],
+    "anyInReportOnly": ["ca-002"],
+    "noAllUsersBlockWithoutRisk": null
+  },
+
+  "signInSummary": {
+    "windowDays": 30,
+    "sampleSize": 0
+  }
+}

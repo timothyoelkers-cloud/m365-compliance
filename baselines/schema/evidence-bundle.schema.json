@@ -153,8 +153,8 @@
           "description": "SHA-256 of this manifest with the integrity.signature field set to the empty string. Computed last during bundle assembly."
         },
         "signature": {
-          "type": "object",
-          "description": "Optional detached signature over manifestSha256 (Azure Key Vault / HSM / code-signing)",
+          "type": ["object", "null"],
+          "description": "Optional detached signature over manifestSha256 (Azure Key Vault / HSM / code-signing). Null when bundle is unsigned.",
           "properties": {
             "alg": { "type": "string" },
             "kid": { "type": "string" },

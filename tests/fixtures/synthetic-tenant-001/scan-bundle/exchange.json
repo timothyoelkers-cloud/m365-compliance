@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "capturedAt": "2026-04-25T10:00:00Z",
+  "producedBy": "Invoke-ExchangeScan.ps1@1.0.0-fixture",
+
+  "organizationConfig": {
+    "AuditDisabled":              true,
+    "CustomerLockBoxEnabled":     false,
+    "OAuth2ClientProfileEnabled": true
+  },
+
+  "transportConfig": {
+    "SmtpClientAuthenticationDisabled": true
+  },
+
+  "outboundSpamPolicies": [
+    {
+      "Name": "Default",
+      "AutoForwardingMode": "Automatic",
+      "RecipientLimitExternalPerHour": 500,
+      "RecipientLimitPerDay": 1000,
+      "BccSuspiciousOutboundMail": []
+    }
+  ],
+
+  "dkimSigningConfig": [
+    { "Domain": "fixture.example", "Enabled": true,  "Status": "Valid" },
+    { "Domain": "alt.example",     "Enabled": false, "Status": "NotEnabled" }
+  ],
+
+  "antiPhishPolicies":         [],
+  "antiPhishRules":            [],
+  "antiSpamInbound":           [],
+  "antiSpamRules":             [],
+  "malwareFilterPolicies":     [],
+  "malwareFilterRules":        [],
+  "safeLinksPolicies":         [],
+  "safeLinksRules":            [],
+  "safeAttachmentsPolicies":   [],
+  "safeAttachmentsRules":      [],
+  "atpPolicyForO365":          null,
+  "presetEopRules":            [],
+  "presetAtpRules":            [],
+  "transportRules":            [],
+  "acceptedDomains":           [{ "Name": "fixture.example", "DomainType": "Authoritative", "Default": true }],
+  "remoteDomains":             [],
+  "inboundConnectors":         [],
+  "outboundConnectors":        [],
+  "casMailboxPlans":           [],
+  "mailboxAudit":              { "tenantAuditDisabled": true }
+}

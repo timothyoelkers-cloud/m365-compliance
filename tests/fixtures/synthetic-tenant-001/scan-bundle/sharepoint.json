@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "capturedAt": "2026-04-25T10:00:00Z",
+  "producedBy": "Invoke-SharePointScan.ps1@1.0.0-fixture",
+
+  "tenant": {
+    "SharingCapability":                  "ExternalUserAndGuestSharing",
+    "OneDriveSharingCapability":          "ExternalUserAndGuestSharing",
+    "DefaultSharingLinkType":             "Direct",
+    "DefaultLinkPermission":              "View",
+    "RequireAnonymousLinksExpireInDays":  60,
+    "ExternalUserExpirationRequired":     false,
+    "ExternalUserExpireInDays":           60,
+    "PreventExternalUsersFromResharing":  false,
+    "LegacyAuthProtocolsEnabled":         false,
+    "ConditionalAccessPolicy":            "AllowFullAccess",
+    "DisallowInfectedFileDownload":       true,
+    "OrphanedPersonalSitesRetentionPeriod": 60
+  },
+
+  "syncRestriction": {
+    "TenantRestrictionEnabled": false,
+    "AllowedDomainList":        []
+  },
+
+  "sharingDomainRestrictions": {
+    "mode":           "None",
+    "allowedDomains": [],
+    "blockedDomains": []
+  },
+
+  "sitesWithExtendedSharing": [],
+  "geoLocations":             []
+}

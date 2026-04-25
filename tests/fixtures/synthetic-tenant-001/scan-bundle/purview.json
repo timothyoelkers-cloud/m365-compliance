@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "capturedAt": "2026-04-25T10:00:00Z",
+  "producedBy": "Invoke-PurviewScan.ps1@1.0.0-fixture",
+
+  "unifiedAuditLog": {
+    "UnifiedAuditLogIngestionEnabled": true,
+    "AdminAuditLogEnabled":            true,
+    "AuditLogAgeLimit":                "90.00:00:00"
+  },
+
+  "sensitivityLabels":   [
+    { "Name": "Public",   "DisplayName": "Public",   "EncryptionEnabled": false },
+    { "Name": "Internal", "DisplayName": "Internal", "EncryptionEnabled": false }
+  ],
+  "labelPolicies":       [
+    { "Name": "default-label-policy", "Mode": "Enable", "Labels": ["Public", "Internal"] }
+  ],
+  "autoLabelPolicies":   [],
+  "autoLabelRules":      [],
+
+  "dlpPolicies":         [
+    { "Name": "credit-card-default", "Mode": "Enable", "Workload": "Exchange,SharePoint,OneDrive,Teams" }
+  ],
+  "dlpRules":            [],
+
+  "retentionPolicies":   [],
+  "retentionRules":      [],
+  "retentionLabels":     [],
+  "supervisoryPolicies": [],
+  "insiderRiskPolicies": [],
+  "informationBarriers": [],
+  "organizationSegments": [],
+  "alertPolicies":       [],
+  "trainableClassifiers": []
+}

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "capturedAt": "2026-04-25T10:00:00Z",
+  "producedBy": "Invoke-IntuneScan.ps1@1.0.0-fixture",
+
+  "compliancePolicies": [
+    {
+      "Id":          "compliance-windows-baseline",
+      "DisplayName": "Windows compliance — baseline",
+      "Description": "Fixture compliance policy for Windows",
+      "Version":     1,
+      "type":        "#microsoft.graph.windows10CompliancePolicy"
+    }
+  ],
+
+  "configurationProfiles":      [],
+  "configurationPoliciesBeta":  [],
+  "endpointSecurity":           [],
+  "appProtectionPolicies":      [],
+  "appConfigurationPolicies":   [],
+  "enrollmentConfigurations":   [],
+  "scopeTags":                  [{ "Id": "0", "DisplayName": "Default", "IsBuiltIn": true }],
+  "assignmentFilters":          [],
+  "windowsUpdateRings":         [],
+
+  "devicesByCompliance": [
+    { "state": "compliant",    "count": 12 },
+    { "state": "noncompliant", "count": 1 }
+  ],
+  "devicesByPlatform": [
+    { "platform": "Windows", "count": 10 },
+    { "platform": "iOS",     "count": 3 }
+  ]
+}

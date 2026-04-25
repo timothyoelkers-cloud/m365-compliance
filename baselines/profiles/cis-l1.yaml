@@ -232,7 +232,7 @@ exchange:
   modern_auth_required: true
   # 6.2.1 — all forms of forwarding blocked (outbound spam policy)
   outbound_spam:
-    auto_forwarding_mode: Off
+    auto_forwarding_mode: 'Off'   # quoted — YAML treats bare Off as boolean false
     recipient_limit_external_per_hour: 400
     recipient_limit_internal_per_hour: 800
     recipient_limit_per_day: 800

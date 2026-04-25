@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "capturedAt": "2026-04-25T10:00:00Z",
+  "producedBy": "Invoke-TeamsScan.ps1@1.0.0-fixture",
+
+  "federation": {
+    "AllowedDomains":        [],
+    "BlockedDomains":        [],
+    "AllowFederatedUsers":   true,
+    "AllowTeamsConsumer":    true,
+    "AllowPublicUsers":      false
+  },
+
+  "meetingPolicyGlobal": {
+    "AllowAnonymousUsersToJoinMeeting":         true,
+    "AllowAnonymousUsersToStartMeeting":        false,
+    "AutoAdmittedUsers":                        "Everyone",
+    "AllowPSTNUsersToBypassLobby":              false,
+    "MeetingChatEnabledType":                   "Enabled",
+    "AllowExternalParticipantGiveRequestControl": true,
+    "AllowCloudRecording":                      true
+  },
+
+  "messagingPolicyGlobal": {
+    "AllowUrlPreviews":   true,
+    "AllowGiphy":         true
+  },
+
+  "appPermissionGlobal": {
+    "DefaultCatalogAppsType": "AllowedAppList",
+    "GlobalCatalogAppsType":  "AllowedAppList",
+    "PrivateCatalogAppsType": "BlockedAppList"
+  },
+
+  "appSetupGlobal":          { "AllowUserPinning": true },
+  "channelsPolicyGlobal":    { "AllowChannelSharingToExternalUser": false },
+  "clientConfiguration":     { "AllowEmailIntoChannel": false, "AllowGuestUser": true },
+  "guestMeetingPolicy":      null,
+  "meetingConfiguration":    null,
+  "meetingBroadcastPolicy":  null,
+
+  "allMeetingPolicies":   [{ "Identity": "Global" }],
+  "allMessagingPolicies": [{ "Identity": "Global" }],
+  "allAppPermissionPolicies": [{ "Identity": "Global", "GlobalCatalogAppsType": "AllowedAppList" }]
+}

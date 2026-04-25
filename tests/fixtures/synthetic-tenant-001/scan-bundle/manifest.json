@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenant": {
+    "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+    "displayName": "Synthetic Test Tenant (fixture)",
+    "region": "EU-North",
+    "jurisdictions": [
+      "GB"
+    ],
+    "tenantClass": "synthetic"
+  },
+  "run": {
+    "runId": "00000000-0000-0000-0000-cccccccccccc",
+    "mode": "audit",
+    "startedAt": "2026-04-25T10:00:00Z",
+    "completedAt": "2026-04-25T10:00:30Z",
+    "operator": {
+      "kind": "user",
+      "id": "fixture@example.invalid",
+      "displayName": "Fixture Builder"
+    }
+  },
+  "baseline": {
+    "gitSha": "deadbeefcafebabefeedface",
+    "profiles": [
+      {
+        "name": "cis-l1-l2",
+        "version": "1.0.0"
+      },
+      {
+        "name": "nis2-overlay",
+        "version": "1.0.0"
+      }
+    ],
+    "overridesPresent": false
+  },
+  "artefacts": [
+    {
+      "workload": "entra",
+      "path": "entra.json",
+      "sha256": "0a007f2d768b21d9ea44dcbc4f97b9f39d0684b5a41fda8110b510c1532ca30d",
+      "bytes": 1980,
+      "producedBy": "Invoke-EntraScan.ps1@1.0.0-fixture"
+    },
+    {
+      "workload": "conditional-access",
+      "path": "conditional-access.json",
+      "sha256": "c1564cfb07e4039f1428a1647bb96e5f958179576fde2bc35274d7bd4034dc23",
+      "bytes": 1460,
+      "producedBy": "Invoke-ConditionalaccessScan.ps1@1.0.0-fixture"
+    },
+    {
+      "workload": "exchange",
+      "path": "exchange.json",
+      "sha256": "0a3d48205314756d66c3d89714c1c30194a6c5ed4c013a9b57afbf4cf16892dd",
+      "bytes": 1630,
+      "producedBy": "Invoke-ExchangeScan.ps1@1.0.0-fixture"
+    },
+    {
+      "workload": "sharepoint",
+      "path": "sharepoint.json",
+      "sha256": "647e4143990a7eb650f1c0e996d18c3ea85e61bbdf3e8afb173925b657b84b8f",
+      "bytes": 1139,
+      "producedBy": "Invoke-SharepointScan.ps1@1.0.0-fixture"
+    },
+    {
+      "workload": "teams",
+      "path": "teams.json",
+      "sha256": "6f3af5ff56c63756d8182a360325e9f9e5a6b46b18416e3909f5f3f3488562f2",
+      "bytes": 1614,
+      "producedBy": "Invoke-TeamsScan.ps1@1.0.0-fixture"
+    },
+    {
+      "workload": "purview",
+      "path": "purview.json",
+      "sha256": "21bebb7a30e545eb691d8b7fb31718e557faa71f7bd1e203bcba6a7adf448bb1",
+      "bytes": 1164,
+      "producedBy": "Invoke-PurviewScan.ps1@1.0.0-fixture"
+    },
+    {
+      "workload": "defender",
+      "path": "defender.json",
+      "sha256": "49149c39da83a2c40a6f8f2ebf8439f4873251dd43b3ae4391f75d9bb103f7d7",
+      "bytes": 623,
+      "producedBy": "Invoke-DefenderScan.ps1@1.0.0-fixture"
+    },
+    {
+      "workload": "intune",
+      "path": "intune.json",
+      "sha256": "eb91794fde8b3f6e71d02bee0f7804714abe0bf801bc5e4618c0a9f7303f9ae0",
+      "bytes": 1106,
+      "producedBy": "Invoke-IntuneScan.ps1@1.0.0-fixture"
+    }
+  ],
+  "findings": [],
+  "integrity": {
+    "manifestSha256": "f0bda7a313c75ce6d26535a21d0487e7c40a646073fd9109565ee02764a95b1c",
+    "signature": null
+  }
+}

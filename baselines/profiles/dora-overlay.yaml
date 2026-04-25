@@ -70,7 +70,7 @@ exchange:
   customer_key_for_regulated_workloads: true
   # Art 10 — outbound monitoring for compromised account exfil (v6 focus area)
   outbound_spam:
-    auto_forwarding_mode: Off
+    auto_forwarding_mode: 'Off'
     recipient_limit_external_per_hour: 200      # tighter than CIS default
     recipient_limit_per_day: 400
     action_when_threshold_reached: BlockUser

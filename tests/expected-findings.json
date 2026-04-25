@@ -1,0 +1,246 @@
+{
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "runId": "00000000-0000-0000-0000-cccccccccccc",
+  "rulesFile": "scripts/common/diff-rules.yaml",
+  "summary": {
+    "total": 12,
+    "critical": 0,
+    "high": 4,
+    "medium": 6,
+    "low": 0,
+    "info": 2
+  },
+  "findings": [
+    {
+      "id": "entra.weak-auth-voice-disabled",
+      "severity": "high",
+      "workload": "entra",
+      "baselineControlId": "m365.entra.auth-methods.voice-disabled",
+      "cisRef": "5.2.3.5",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "5.2.3.5"
+        }
+      ],
+      "currentValue": "enabled",
+      "desiredValue": "disabled",
+      "actionTaken": "reported",
+      "evidenceArtefact": "entra.json"
+    },
+    {
+      "id": "exchange.auto-forwarding-off",
+      "severity": "high",
+      "workload": "exchange",
+      "baselineControlId": "m365.exchange.mail-forwarding-blocked",
+      "cisRef": "6.2.1",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "6.2.1"
+        },
+        {
+          "framework": "hipaa",
+          "ref": "§164.312(e)"
+        }
+      ],
+      "currentValue": "Automatic",
+      "desiredValue": "Off",
+      "actionTaken": "reported",
+      "evidenceArtefact": "exchange.json"
+    },
+    {
+      "id": "exchange.mailbox-audit-on",
+      "severity": "high",
+      "workload": "exchange",
+      "baselineControlId": "m365.exchange.mailbox-audit",
+      "cisRef": "6.1.1",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "6.1.1"
+        },
+        {
+          "framework": "hipaa",
+          "ref": "§164.312(b)"
+        },
+        {
+          "framework": "dora",
+          "ref": "Art 10"
+        }
+      ],
+      "currentValue": true,
+      "desiredValue": true,
+      "actionTaken": "reported",
+      "evidenceArtefact": "exchange.json"
+    },
+    {
+      "id": "sharepoint.sharing-capability",
+      "severity": "high",
+      "workload": "sharepoint",
+      "baselineControlId": "m365.sharepoint.sharing-capability",
+      "cisRef": "7.2.3",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "7.2.3"
+        },
+        {
+          "framework": "dora",
+          "ref": "Art 9(2)(c)"
+        },
+        {
+          "framework": "hipaa",
+          "ref": "§164.502"
+        }
+      ],
+      "currentValue": "ExternalUserAndGuestSharing",
+      "desiredValue": "ExistingExternalUserSharingOnly",
+      "actionTaken": "reported",
+      "evidenceArtefact": "sharepoint.json"
+    },
+    {
+      "id": "exchange.dkim-enabled-for-all",
+      "severity": "medium",
+      "workload": "exchange",
+      "baselineControlId": "m365.exchange.dkim",
+      "cisRef": "2.1.9",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "2.1.9"
+        }
+      ],
+      "currentValue": [
+        true,
+        false
+      ],
+      "desiredValue": true,
+      "actionTaken": "reported",
+      "evidenceArtefact": "exchange.json"
+    },
+    {
+      "id": "sharepoint.guest-expire-required",
+      "severity": "medium",
+      "workload": "sharepoint",
+      "baselineControlId": "m365.sharepoint.guest-expire",
+      "cisRef": "7.2.9",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "7.2.9"
+        },
+        {
+          "framework": "nis2",
+          "ref": "Art 21(2)(d)"
+        }
+      ],
+      "currentValue": false,
+      "desiredValue": true,
+      "actionTaken": "reported",
+      "evidenceArtefact": "sharepoint.json"
+    },
+    {
+      "id": "sharepoint.prevent-external-resharing",
+      "severity": "medium",
+      "workload": "sharepoint",
+      "baselineControlId": "m365.sharepoint.prevent-resharing",
+      "cisRef": "7.2.5",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "7.2.5"
+        }
+      ],
+      "currentValue": false,
+      "desiredValue": true,
+      "actionTaken": "reported",
+      "evidenceArtefact": "sharepoint.json"
+    },
+    {
+      "id": "teams.anonymous-cannot-join",
+      "severity": "medium",
+      "workload": "teams",
+      "baselineControlId": "m365.teams.anonymous-no-join",
+      "cisRef": "8.5.1",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "8.5.1"
+        }
+      ],
+      "currentValue": true,
+      "desiredValue": false,
+      "actionTaken": "reported",
+      "evidenceArtefact": "teams.json"
+    },
+    {
+      "id": "teams.federation-consumer-blocked",
+      "severity": "medium",
+      "workload": "teams",
+      "baselineControlId": "m365.teams.unmanaged-blocked",
+      "cisRef": "8.2.2",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "8.2.2"
+        }
+      ],
+      "currentValue": true,
+      "desiredValue": false,
+      "actionTaken": "reported",
+      "evidenceArtefact": "teams.json"
+    },
+    {
+      "id": "teams.lobby-bypass-restricted",
+      "severity": "medium",
+      "workload": "teams",
+      "baselineControlId": "m365.teams.lobby-bypass",
+      "cisRef": "8.5.3",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "8.5.3"
+        }
+      ],
+      "currentValue": "Everyone",
+      "desiredValue": "EveryoneInCompanyExcludingGuests",
+      "actionTaken": "reported",
+      "evidenceArtefact": "teams.json"
+    },
+    {
+      "id": "powerbi.guest-access-restricted",
+      "severity": "info",
+      "workload": "powerbi",
+      "baselineControlId": "m365.powerbi.guest-restricted",
+      "cisRef": "9.1.1",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "9.1.1"
+        }
+      ],
+      "currentValue": null,
+      "desiredValue": false,
+      "actionTaken": "deferred",
+      "evidenceArtefact": "(no powerbi artefact in bundle)"
+    },
+    {
+      "id": "powerbi.publish-to-web-restricted",
+      "severity": "info",
+      "workload": "powerbi",
+      "baselineControlId": "m365.powerbi.publish-to-web",
+      "cisRef": "9.1.4",
+      "frameworkRefs": [
+        {
+          "framework": "cis-m365",
+          "ref": "9.1.4"
+        }
+      ],
+      "currentValue": null,
+      "desiredValue": "disabled",
+      "actionTaken": "deferred",
+      "evidenceArtefact": "(no powerbi artefact in bundle)"
+    }
+  ]
+}

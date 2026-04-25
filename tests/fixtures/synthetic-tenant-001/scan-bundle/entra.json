@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "capturedAt": "2026-04-25T10:00:00Z",
+  "producedBy": "Invoke-EntraScan.ps1@1.0.0-fixture",
+
+  "authorizationPolicy": {
+    "allowedToSignUpEmailBasedSubscriptions": false,
+    "allowedToUseSspr": true,
+    "guestUserRoleId": "2af84b1e-32c8-42b7-82bc-daa82404023b",
+    "allowInvitesFrom": "adminsAndGuestInviters",
+    "defaultUserRolePermissions": {
+      "allowedToCreateApps": true,
+      "allowedToCreateSecurityGroups": false,
+      "allowedToCreateTenants": false,
+      "allowedToReadOtherUsers": true,
+      "permissionGrantPoliciesAssigned": [
+        "ManagePermissionGrantsForSelf.microsoft-user-default-legacy"
+      ]
+    }
+  },
+
+  "authMethodsPolicy": {
+    "Fido2":                   { "state": "enabled" },
+    "MicrosoftAuthenticator":  { "state": "enabled" },
+    "WindowsHelloForBusiness": { "state": "enabled" },
+    "TemporaryAccessPass":     { "state": "enabled" },
+    "Sms":                     { "state": "disabled" },
+    "Voice":                   { "state": "enabled" },
+    "Email":                   { "state": "disabled" },
+    "X509Certificate":         { "state": "enabled" }
+  },
+
+  "adminConsentPolicy": {
+    "isEnabled": true,
+    "notifyReviewers": true,
+    "remindersEnabled": true,
+    "requestDurationInDays": 30,
+    "reviewers": ["grp-app-consent-approvers"]
+  },
+
+  "privilegedRoles": [
+    { "role": "Global Administrator",       "memberCount": 3 },
+    { "role": "Privileged Role Administrator", "memberCount": 1 }
+  ],
+
+  "adminAccounts": {
+    "count":     3,
+    "cloudOnly": 3,
+    "hybrid":    0,
+    "upns":      ["ga1@fixture.example", "ga2@fixture.example", "bg@fixture.example"]
+  },
+
+  "namedLocations": [],
+  "authStrengths":  [],
+  "crossTenantAccess": { "default": {}, "partners": [] },
+  "accessReviews":     [],
+  "pimRoleSettings":   [],
+
+  "featureLicences": {
+    "entraP1": true,
+    "entraP2": true,
+    "hasE5":   true
+  }
+}

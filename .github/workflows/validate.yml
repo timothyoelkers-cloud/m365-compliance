@@ -160,3 +160,46 @@ jobs:
           globs: |
             **/*.md
             !**/node_modules/**
+
+  fixture-python:
+    name: Fixture verify (Python — runs everywhere, no pwsh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PyYAML
+        run: python -m pip install --quiet pyyaml
+      - name: Rebuild manifest from current bundle JSONs
+        run: python tests/build_fixture.py
+      - name: Verify findings match expected-findings.json
+        run: python tests/verify_fixture.py
+
+  fixture-pester:
+    name: Fixture verify (Pester — canonical PowerShell engines)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pester + powershell-yaml
+        shell: pwsh
+        run: |
+          Install-Module Pester          -MinimumVersion 5.5.0 -Scope CurrentUser -Force -AcceptLicense -SkipPublisherCheck
+          Install-Module powershell-yaml -Scope CurrentUser -Force -AcceptLicense
+      - name: Rebuild manifest (so SHAs match the bundle's current contents)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+            Write-Host "::warning::python not on PATH; manifest will be reused as-committed"
+          } else {
+            python -m pip install --quiet pyyaml
+            python tests/build_fixture.py
+          }
+      - name: Run Pester
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path     = 'tests/end-to-end.Tests.ps1'
+          $config.Run.Exit     = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config

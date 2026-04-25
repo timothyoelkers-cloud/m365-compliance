@@ -3,10 +3,18 @@ metadata:
   name: cis-l1-l2
   kind: profile
   description: |
-    CIS Microsoft 365 Foundations Benchmark v6.0.1 — Level 1 + Level 2 profile.
-    Defence-in-depth posture for tenants where data sensitivity or regulatory
-    burden justifies additional friction. Consumers should layer a framework-
-    specific overlay (DORA, NIS 2, HIPAA) on top of this profile.
+    CIS Microsoft 365 Foundations Benchmark v6.0.1 — Level 2 hardening additions.
+    Designed to be layered ON TOP of cis-l1. Consumers' tenant.yaml MUST list
+    cis-l1 first, then cis-l1-l2:
+
+      profiles:
+        - cis-l1@~1.0
+        - cis-l1-l2@~1.0
+        - <framework-overlay>@~1.0
+
+    Layering cis-l1-l2 alone produces a near-empty merged baseline — most
+    settings live in cis-l1. Defence-in-depth posture for tenants where data
+    sensitivity or regulatory burden justifies additional friction.
 
 rollout:
   rings: [0, 1, 2]
