@@ -174,11 +174,11 @@ Describe 'Synthetic-tenant-001 end-to-end' {
             ($untracked | ForEach-Object displayName) | Should -Contain 'CIS L1 — Require MFA for all users'
         }
 
-        It 'flags a patch action for the legacy-auth-block policy (drift in conditions)' {
+        It 'classifies cis-l1-ca-001-block-legacy-auth as unchanged (normaliser handles encoding mismatch)' {
             $actual = Get-Content -Raw (Join-Path $script:CaOutDir 'plan.json') | ConvertFrom-Json
-            $patch = $actual.actions | Where-Object { $_.action -eq 'patch' -and $_.baselineId -eq 'cis-l1-ca-001-block-legacy-auth' } | Select-Object -First 1
-            $patch | Should -Not -BeNullOrEmpty
-            $patch.diffFields | Should -Contain 'conditions'
+            $row = $actual.actions | Where-Object { $_.baselineId -eq 'cis-l1-ca-001-block-legacy-auth' } | Select-Object -First 1
+            $row | Should -Not -BeNullOrEmpty
+            $row.action | Should -Be 'unchanged'
         }
 
         It 'refuses apply mode without -ApprovalRef' {

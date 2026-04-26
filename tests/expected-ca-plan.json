@@ -5,8 +5,8 @@
   "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
   "summary": {
     "create": 12,
-    "patch": 1,
-    "unchanged": 0,
+    "patch": 0,
+    "unchanged": 1,
     "remove": 0
   },
   "requiresApproval": false,
@@ -136,13 +136,10 @@
       "baselineId": "cis-l1-ca-001-block-legacy-auth",
       "tenantId": "ca-001",
       "displayName": "CIS L1 — Block legacy authentication",
-      "action": "patch",
-      "reason": "Drift in: conditions",
+      "action": "unchanged",
+      "reason": "Tenant policy matches baseline",
       "currentState": "enabled",
-      "targetState": "enabled",
-      "diffFields": [
-        "conditions"
-      ]
+      "targetState": "enabled"
     },
     {
       "tenantId": "ca-002",

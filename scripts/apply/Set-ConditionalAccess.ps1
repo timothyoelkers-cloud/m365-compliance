@@ -127,32 +127,147 @@ function Resolve-TenantPolicy {
     return $null
 }
 
+# ----- Baseline -> Graph normaliser --------------------------------------
+# Populated baselines use YAML-friendly names (include / exclude_groups);
+# Graph emits its own names (includeUsers / excludeGroups). Diff and apply
+# happen against Graph shape — never compare baseline shape directly.
+
+$script:UsersRenames = @{
+    'include'                          = 'includeUsers'
+    'exclude'                          = 'excludeUsers'
+    'include_users'                    = 'includeUsers'
+    'exclude_users'                    = 'excludeUsers'
+    'include_groups'                   = 'includeGroups'
+    'exclude_groups'                   = 'excludeGroups'
+    'include_roles'                    = 'includeRoles'
+    'exclude_roles'                    = 'excludeRoles'
+    'include_guests_or_external_users' = 'includeGuestsOrExternalUsers'
+    'exclude_guests_or_external_users' = 'excludeGuestsOrExternalUsers'
+}
+$script:AppsRenames = @{
+    'include'              = 'includeApplications'
+    'exclude'              = 'excludeApplications'
+    'include_applications' = 'includeApplications'
+    'exclude_applications' = 'excludeApplications'
+    'include_user_actions' = 'includeUserActions'
+}
+$script:PlatformRenames = @{ 'include' = 'includePlatforms'; 'exclude' = 'excludePlatforms' }
+$script:LocationRenames = @{ 'include' = 'includeLocations'; 'exclude' = 'excludeLocations' }
+
+function ConvertFrom-PSObjectToHashtable {
+    param($Obj)
+    if ($null -eq $Obj) { return $null }
+    if ($Obj -is [System.Collections.IDictionary]) {
+        $out = @{}
+        foreach ($k in $Obj.Keys) { $out[$k] = ConvertFrom-PSObjectToHashtable -Obj $Obj[$k] }
+        return $out
+    }
+    if ($Obj -is [pscustomobject]) {
+        $out = @{}
+        foreach ($p in $Obj.PSObject.Properties) { $out[$p.Name] = ConvertFrom-PSObjectToHashtable -Obj $p.Value }
+        return $out
+    }
+    if ($Obj -is [System.Collections.IList] -and $Obj -isnot [string]) {
+        return @($Obj | ForEach-Object { ConvertFrom-PSObjectToHashtable -Obj $_ })
+    }
+    return $Obj
+}
+
+function _RenameKeys {
+    param($Dict, $Renames)
+    if (-not ($Dict -is [System.Collections.IDictionary])) { return $Dict }
+    $out = @{}
+    foreach ($k in $Dict.Keys) {
+        $newKey = if ($Renames.ContainsKey($k)) { $Renames[$k] } else { $k }
+        $out[$newKey] = $Dict[$k]
+    }
+    return $out
+}
+
+function _StripEmpty {
+    param($Obj)
+    if ($null -eq $Obj) { return $null }
+    if ($Obj -is [System.Collections.IList] -and $Obj -isnot [string]) {
+        $cleaned = @($Obj | ForEach-Object { _StripEmpty -Obj $_ } | Where-Object { $null -ne $_ -and -not ($_ -is [System.Collections.IList] -and $_.Count -eq 0) -and -not ($_ -is [System.Collections.IDictionary] -and $_.Keys.Count -eq 0) })
+        if ($cleaned.Count -eq 0) { return $null } else { return $cleaned }
+    }
+    if ($Obj -is [System.Collections.IDictionary]) {
+        $out = @{}
+        foreach ($k in $Obj.Keys) {
+            $v = _StripEmpty -Obj $Obj[$k]
+            if ($null -ne $v -and -not ($v -is [System.Collections.IList] -and $v.Count -eq 0) -and -not ($v -is [System.Collections.IDictionary] -and $v.Keys.Count -eq 0)) {
+                $out[$k] = $v
+            }
+        }
+        if ($out.Keys.Count -eq 0) { return $null } else { return $out }
+    }
+    return $Obj
+}
+
+function ConvertTo-GraphCaPolicy {
+    <#
+    .SYNOPSIS Convert a baseline-shaped CA policy to Graph shape (for diff or apply).
+    #>
+    param($Policy)
+    if ($null -eq $Policy) { return $null }
+    $p = ConvertFrom-PSObjectToHashtable -Obj $Policy
+
+    $out = @{}
+    foreach ($k in @('id','displayName','state')) { if ($p.ContainsKey($k)) { $out[$k] = $p[$k] } }
+
+    $newConds = @{}
+    if ($p.ContainsKey('conditions') -and $p['conditions']) {
+        $c = $p['conditions']
+        if ($c.ContainsKey('users'))        { $newConds['users']        = _RenameKeys -Dict $c['users']        -Renames $script:UsersRenames }
+        if ($c.ContainsKey('applications')) { $newConds['applications'] = _RenameKeys -Dict $c['applications'] -Renames $script:AppsRenames  }
+        if ($c.ContainsKey('platforms'))    { $newConds['platforms']    = _RenameKeys -Dict $c['platforms']    -Renames $script:PlatformRenames }
+        if ($c.ContainsKey('locations'))    { $newConds['locations']    = _RenameKeys -Dict $c['locations']    -Renames $script:LocationRenames }
+        foreach ($k in @('clientAppTypes','signInRiskLevels','userRiskLevels','servicePrincipalRiskLevels')) {
+            if ($c.ContainsKey($k)) { $newConds[$k] = $c[$k] }
+        }
+        if ($c.ContainsKey('authentication_flows')) { $newConds['authenticationFlows'] = $c['authentication_flows'] }
+        if ($c.ContainsKey('device_filter'))        { $newConds['deviceFilter']        = $c['device_filter'] }
+    }
+    if ($newConds.Keys.Count -gt 0) { $out['conditions'] = $newConds }
+
+    if ($p.ContainsKey('grantControls') -and $p['grantControls']) {
+        $gc = @{} + $p['grantControls']
+        if ($gc.ContainsKey('authenticationStrength') -and $gc['authenticationStrength'] -is [string]) {
+            $gc['authenticationStrength'] = @{ id = $gc['authenticationStrength'] }
+        }
+        $out['grantControls'] = $gc
+    }
+    if ($p.ContainsKey('sessionControls') -and $p['sessionControls']) {
+        $out['sessionControls'] = $p['sessionControls']
+    }
+
+    return _StripEmpty -Obj $out
+}
+
 # ----- Compute action per baseline policy --------------------------------
 function Compare-Policy {
     param($Baseline, $Tenant)
     $diff = [System.Collections.Generic.List[hashtable]]::new()
 
-    if ($Baseline.state -ne $Tenant.state) {
-        [void]$diff.Add(@{ field = 'state'; current = $Tenant.state; target = $Baseline.state })
+    $bGraph = ConvertTo-GraphCaPolicy -Policy $Baseline
+    $tGraph = _StripEmpty -Obj (ConvertFrom-PSObjectToHashtable -Obj $Tenant)
+
+    function _serialize($obj) {
+        if ($null -eq $obj) { return 'null' }
+        ($obj | ConvertTo-Json -Depth 25 -Compress)
     }
 
-    # Conditions / grantControls — compare a normalised projection. The full
-    # patch is built only at apply-time from the baseline; this diff just flags
-    # whether any material drift exists.
-    function _normalize($obj) {
-        if ($null -eq $obj) { return $null }
-        ($obj | ConvertTo-Json -Depth 20 -Compress)
+    if ($bGraph.state -ne $tGraph.state) {
+        [void]$diff.Add(@{ field = 'state'; current = $tGraph.state; target = $bGraph.state })
     }
-
-    if ((_normalize $Baseline.conditions) -ne (_normalize $Tenant.conditions)) {
-        [void]$diff.Add(@{ field = 'conditions'; current = $Tenant.conditions; target = $Baseline.conditions })
+    if ((_serialize $bGraph.conditions) -ne (_serialize $tGraph.conditions)) {
+        [void]$diff.Add(@{ field = 'conditions'; current = $tGraph.conditions; target = $bGraph.conditions })
     }
-    if ((_normalize $Baseline.grantControls) -ne (_normalize $Tenant.grantControls)) {
-        [void]$diff.Add(@{ field = 'grantControls'; current = $Tenant.grantControls; target = $Baseline.grantControls })
+    if ((_serialize $bGraph.grantControls) -ne (_serialize $tGraph.grantControls)) {
+        [void]$diff.Add(@{ field = 'grantControls'; current = $tGraph.grantControls; target = $bGraph.grantControls })
     }
-    if ($Baseline.PSObject.Properties.Name -contains 'sessionControls' -and `
-        (_normalize $Baseline.sessionControls) -ne (_normalize $Tenant.sessionControls)) {
-        [void]$diff.Add(@{ field = 'sessionControls'; current = $Tenant.sessionControls; target = $Baseline.sessionControls })
+    if ((_serialize $bGraph.sessionControls) -ne (_serialize $tGraph.sessionControls)) {
+        [void]$diff.Add(@{ field = 'sessionControls'; current = $tGraph.sessionControls; target = $bGraph.sessionControls })
     }
     return $diff
 }

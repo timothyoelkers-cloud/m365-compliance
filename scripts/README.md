@@ -108,8 +108,7 @@ CA policies are matched to baseline ids via `baselines/tenants/<tenant>/ca.tenan
 
 ## What's not here yet
 
-- **Other apply primitives** — Set-Entra, Set-Exchange, Set-SharePoint, Set-Teams, Set-Purview, Set-Defender, Set-Intune. Each clones the Set-ConditionalAccess pattern.
-- **Baseline → Graph translator** — populated baselines use our YAML names (e.g. `include`, `exclude_groups`); Graph wants Microsoft's names (`includeUsers`, `excludeGroups`). Currently the planner reports the encoding difference as drift in the conditions field. The fix is a per-workload normalisation function applied before diff.
+- **Other apply primitives** — Set-Entra, Set-Exchange, Set-SharePoint, Set-Teams, Set-Purview, Set-Defender, Set-Intune. Each clones the Set-ConditionalAccess pattern; each will need its own baseline-to-API normaliser similar to `ConvertTo-GraphCaPolicy`.
 - **Power BI async workspace scan** — the `/admin/workspaces/getInfo` two-step dance. Placeholder in [Invoke-PowerBIScan.ps1](scan/Invoke-PowerBIScan.ps1) — build out when the portal runner infra exists to track async jobs.
 - **Defender for Cloud Apps deep read** — requires a dedicated MDA API token; needs a second connect primitive. Note in [Invoke-DefenderScan.ps1](scan/Invoke-DefenderScan.ps1).
 - **Graph throttling backoff** — the per-script reads are modest today. When running across hundreds of tenants concurrently, add a per-tenant-id token bucket and exponential backoff in a shared helper.

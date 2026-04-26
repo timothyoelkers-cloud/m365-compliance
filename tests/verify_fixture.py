@@ -286,6 +286,114 @@ def _norm(obj):
     return None if obj is None else json.dumps(obj, sort_keys=True, separators=(",", ":"))
 
 
+# Field rename map: baseline (YAML-friendly) -> Graph (canonical for diff).
+# Rationale: Get-MgIdentityConditionalAccessPolicy emits Graph field names;
+# our YAML baselines use shorter / Pythonic names for readability. Diff and
+# apply happen against Graph shape — never compare baseline shape directly.
+_USERS_RENAMES = {
+    "include":                          "includeUsers",
+    "exclude":                          "excludeUsers",
+    "include_users":                    "includeUsers",
+    "exclude_users":                    "excludeUsers",
+    "include_groups":                   "includeGroups",
+    "exclude_groups":                   "excludeGroups",
+    "include_roles":                    "includeRoles",
+    "exclude_roles":                    "excludeRoles",
+    "include_guests_or_external_users": "includeGuestsOrExternalUsers",
+    "exclude_guests_or_external_users": "excludeGuestsOrExternalUsers",
+}
+_APPS_RENAMES = {
+    "include":              "includeApplications",
+    "exclude":              "excludeApplications",
+    "include_applications": "includeApplications",
+    "exclude_applications": "excludeApplications",
+    "include_user_actions": "includeUserActions",
+    "include_authentication_context_class_references":
+                            "includeAuthenticationContextClassReferences",
+}
+_PLATFORM_RENAMES  = { "include": "includePlatforms",  "exclude": "excludePlatforms"  }
+_LOCATION_RENAMES  = { "include": "includeLocations",  "exclude": "excludeLocations"  }
+
+
+def _strip_empty(obj):
+    """Drop nulls and empty arrays/objects so two policies that mean the same
+       thing but differ in which optional keys they emit compare equal."""
+    if obj is None: return None
+    if isinstance(obj, list):
+        cleaned = [_strip_empty(x) for x in obj]
+        cleaned = [x for x in cleaned if x is not None and x != [] and x != {}]
+        return cleaned if cleaned else None
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            cleaned = _strip_empty(v)
+            if cleaned is not None and cleaned != [] and cleaned != {}:
+                out[k] = cleaned
+        return out if out else None
+    return obj
+
+
+def _rename_keys(d: dict, renames: dict[str, str]) -> dict:
+    if not isinstance(d, dict): return d
+    return { renames.get(k, k): v for k, v in d.items() }
+
+
+def normalise_baseline_ca_policy(policy: dict, declared_strengths: list[dict] | None = None) -> dict:
+    """Convert a baseline-shaped CA policy to Graph shape for diff/apply.
+
+       - Field renames: include/exclude_groups/etc -> Graph names
+       - authenticationStrength: bare string id -> { id: <id> } object,
+         resolving against declared strengths in the resolved baseline
+       - Strip empty arrays / null fields"""
+    if not isinstance(policy, dict): return policy
+    out: dict = {}
+    for k in ("id", "displayName", "state"):
+        if k in policy: out[k] = policy[k]
+
+    conds = dict(policy.get("conditions") or {})
+    new_conds: dict = {}
+    if "users" in conds:        new_conds["users"]        = _rename_keys(conds["users"],       _USERS_RENAMES)
+    if "applications" in conds: new_conds["applications"] = _rename_keys(conds["applications"], _APPS_RENAMES)
+    if "platforms" in conds:    new_conds["platforms"]    = _rename_keys(conds["platforms"],   _PLATFORM_RENAMES)
+    if "locations" in conds:    new_conds["locations"]    = _rename_keys(conds["locations"],   _LOCATION_RENAMES)
+    for passthrough in ("clientAppTypes", "signInRiskLevels", "userRiskLevels",
+                        "servicePrincipalRiskLevels", "authentication_flows", "device_filter"):
+        if passthrough in conds:
+            # Map to Graph names where they differ
+            if passthrough == "authentication_flows":
+                new_conds["authenticationFlows"] = conds[passthrough]
+            elif passthrough == "device_filter":
+                new_conds["deviceFilter"] = conds[passthrough]
+            else:
+                new_conds[passthrough] = conds[passthrough]
+    if new_conds:
+        out["conditions"] = new_conds
+
+    gc = dict(policy.get("grantControls") or {})
+    if gc:
+        new_gc = dict(gc)
+        # authenticationStrength: bare string -> { id }
+        if isinstance(gc.get("authenticationStrength"), str):
+            sid = gc["authenticationStrength"]
+            resolved_id = sid
+            for s in (declared_strengths or []):
+                if s.get("id") == sid:
+                    resolved_id = sid  # keep id reference; Graph resolves via tenant strengths
+                    break
+            new_gc["authenticationStrength"] = { "id": resolved_id }
+        out["grantControls"] = new_gc
+
+    if "sessionControls" in policy and policy["sessionControls"] is not None:
+        out["sessionControls"] = policy["sessionControls"]
+
+    return _strip_empty(out) or {}
+
+
+def normalise_scan_ca_policy(policy: dict) -> dict:
+    """Strip-empty the scan policy so its sparseness matches the baseline's."""
+    return _strip_empty(policy) or {}
+
+
 def compute_ca_plan(resolved: dict, ca_scan: dict, tenant_map: dict[str, str] | None = None) -> dict:
     tenant_map = tenant_map or {}
     tenant_by_id   = { p["id"]: p for p in (ca_scan.get("policies") or []) }
@@ -298,12 +406,16 @@ def compute_ca_plan(resolved: dict, ca_scan: dict, tenant_map: dict[str, str] | 
             return tenant_by_name[b_display]
         return None
 
-    def diff_policy(b: dict, t: dict) -> list[str]:
+    declared_strengths_for_norm = ((resolved.get("target") or {}).get("entra") or {}).get("authentication_strengths") or []
+
+    def diff_policy(b_raw: dict, t_raw: dict) -> list[str]:
+        b = normalise_baseline_ca_policy(b_raw, declared_strengths_for_norm)
+        t = normalise_scan_ca_policy(t_raw)
         fields: list[str] = []
         if b.get("state") != t.get("state"):                                fields.append("state")
         if _norm(b.get("conditions"))     != _norm(t.get("conditions")):    fields.append("conditions")
         if _norm(b.get("grantControls"))  != _norm(t.get("grantControls")): fields.append("grantControls")
-        if "sessionControls" in b and _norm(b.get("sessionControls")) != _norm(t.get("sessionControls")):
+        if _norm(b.get("sessionControls")) != _norm(t.get("sessionControls")):
             fields.append("sessionControls")
         return fields
 
