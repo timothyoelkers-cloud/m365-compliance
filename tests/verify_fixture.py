@@ -38,7 +38,8 @@ BUNDLE   = FIXTURE / "scan-bundle"
 RULES    = REPO / "scripts" / "common" / "diff-rules.yaml"
 PROFILES = REPO / "baselines" / "profiles"
 GLOBAL   = REPO / "baselines" / "global"
-EXPECTED = TESTS / "expected-findings.json"
+EXPECTED         = TESTS / "expected-findings.json"
+EXPECTED_CA_PLAN = TESTS / "expected-ca-plan.json"
 
 SEVERITY_ORDER = { "critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4 }
 
@@ -277,6 +278,154 @@ def run_diff(resolved: dict, bundle_dir: pathlib.Path, rules_path: pathlib.Path)
 
 
 # ---------------------------------------------------------------------------
+# CA apply planner — Python mirror of scripts/apply/Set-ConditionalAccess.ps1
+# Limited to the plan/dry-run path. Live writes are PowerShell-only.
+# ---------------------------------------------------------------------------
+
+def _norm(obj):
+    return None if obj is None else json.dumps(obj, sort_keys=True, separators=(",", ":"))
+
+
+def compute_ca_plan(resolved: dict, ca_scan: dict, tenant_map: dict[str, str] | None = None) -> dict:
+    tenant_map = tenant_map or {}
+    tenant_by_id   = { p["id"]: p for p in (ca_scan.get("policies") or []) }
+    tenant_by_name = { p["displayName"]: p for p in (ca_scan.get("policies") or []) if p.get("displayName") }
+
+    def resolve_tenant(b_id: str, b_display: str) -> dict | None:
+        if b_id in tenant_map and tenant_map[b_id] in tenant_by_id:
+            return tenant_by_id[tenant_map[b_id]]
+        if b_display and b_display in tenant_by_name:
+            return tenant_by_name[b_display]
+        return None
+
+    def diff_policy(b: dict, t: dict) -> list[str]:
+        fields: list[str] = []
+        if b.get("state") != t.get("state"):                                fields.append("state")
+        if _norm(b.get("conditions"))     != _norm(t.get("conditions")):    fields.append("conditions")
+        if _norm(b.get("grantControls"))  != _norm(t.get("grantControls")): fields.append("grantControls")
+        if "sessionControls" in b and _norm(b.get("sessionControls")) != _norm(t.get("sessionControls")):
+            fields.append("sessionControls")
+        return fields
+
+    actions: list[dict] = []
+    summary = { "create": 0, "patch": 0, "unchanged": 0, "remove": 0 }
+    bg_group = ((resolved.get("target") or {}).get("entra") or {}).get("break_glass", {}).get("group_id")
+
+    declared_strengths = ((resolved.get("target") or {}).get("entra") or {}).get("authentication_strengths") or []
+    declared_strength_ids = { s.get("id") for s in declared_strengths if isinstance(s, dict) }
+    builtin_strengths = { "mfa", "passwordlessMfa", "phishingResistantMfa" }
+
+    blocked_by: list[dict] = []
+    if not bg_group:
+        blocked_by.append({ "rule": "break-glass.declared", "detail": "No break-glass group declared" })
+
+    baseline_policies = ((resolved.get("target") or {}).get("entra") or {}).get("conditional_access_policies") or []
+    seen_baseline_displays: set[str] = set()
+    seen_tenant_ids:        set[str] = set(tenant_map.values())
+
+    for b in baseline_policies:
+        seen_baseline_displays.add(b.get("displayName") or "")
+        t = resolve_tenant(b["id"], b.get("displayName") or "")
+        if t:
+            seen_tenant_ids.add(t["id"])
+            fields = diff_policy(b, t)
+            if not fields:
+                actions.append({
+                    "baselineId":   b["id"], "tenantId": t["id"], "displayName": b.get("displayName"),
+                    "action":       "unchanged",
+                    "reason":       "Tenant policy matches baseline",
+                    "currentState": t.get("state"), "targetState": b.get("state"),
+                })
+                summary["unchanged"] += 1
+            else:
+                actions.append({
+                    "baselineId":   b["id"], "tenantId": t["id"], "displayName": b.get("displayName"),
+                    "action":       "patch",
+                    "reason":       "Drift in: " + ", ".join(fields),
+                    "currentState": t.get("state"), "targetState": b.get("state"),
+                    "diffFields":   fields,
+                })
+                summary["patch"] += 1
+                # Forbidden state transition
+                if t.get("state") == "disabled" and b.get("state") == "enabled":
+                    blocked_by.append({
+                        "rule": "state.transition", "baselineId": b["id"],
+                        "detail": "Must transition disabled -> enabledForReportingButNotEnforced before -> enabled",
+                    })
+        else:
+            actions.append({
+                "baselineId":  b["id"], "displayName": b.get("displayName"),
+                "action":      "create",
+                "reason":      "Baseline policy not present in tenant",
+                "currentState": None, "targetState": b.get("state"),
+            })
+            summary["create"] += 1
+
+        # Invariant: empty users / applications
+        users = (b.get("conditions") or {}).get("users") or {}
+        if not (users.get("include") or users.get("includeUsers")):
+            blocked_by.append({ "rule": "conditions.users.nonempty", "baselineId": b["id"] })
+        apps = (b.get("conditions") or {}).get("applications") or {}
+        if not (apps.get("include") or apps.get("includeApplications") or apps.get("include_user_actions")):
+            blocked_by.append({ "rule": "conditions.applications.nonempty", "baselineId": b["id"] })
+
+        # Block-policy break-glass exclusion
+        gc = b.get("grantControls") or {}
+        is_block = "block" in (gc.get("builtInControls") or [])
+        if is_block and bg_group:
+            excludes = (users.get("exclude_groups") or users.get("excludeGroups") or [])
+            if bg_group not in excludes:
+                blocked_by.append({
+                    "rule": "break-glass.excluded", "baselineId": b["id"],
+                    "detail": f"Block policy does not exclude {bg_group}",
+                })
+
+        # Non-block must have grantControls or authenticationStrength
+        if not is_block:
+            has_built = bool(gc.get("builtInControls"))
+            has_strength = bool(gc.get("authenticationStrength"))
+            if not (has_built or has_strength):
+                blocked_by.append({
+                    "rule": "grantControls.nonempty", "baselineId": b["id"],
+                    "detail": "Non-block policy must declare at least one grant control or authenticationStrength",
+                })
+
+        # authenticationStrength references resolve
+        ref = gc.get("authenticationStrength")
+        if ref and ref not in declared_strength_ids and ref not in builtin_strengths:
+            blocked_by.append({
+                "rule": "authenticationStrength.resolved", "baselineId": b["id"],
+                "detail": f"authenticationStrength '{ref}' not declared and not built-in",
+            })
+
+    # Untracked tenant policies
+    for t in (ca_scan.get("policies") or []):
+        if t["id"] in seen_tenant_ids:                continue
+        if (t.get("displayName") or "") in seen_baseline_displays: continue
+        actions.append({
+            "tenantId":     t["id"], "displayName": t.get("displayName"),
+            "action":       "untracked",
+            "reason":       "Tenant policy not in baseline (apply will leave alone; review)",
+            "currentState": t.get("state"),
+        })
+
+    order = { "create": 0, "patch": 1, "unchanged": 2, "untracked": 3, "remove": 4 }
+    actions.sort(key=lambda a: (order[a["action"]], a.get("baselineId") or "", a.get("tenantId") or ""))
+
+    return {
+        "schemaVersion":    "1.0.0",
+        "workload":         "conditional-access",
+        "mode":             "plan",
+        "tenantId":         resolved["tenant"]["id"],
+        "summary":          summary,
+        "requiresApproval": False,
+        "approvalRef":      None,
+        "blockedBy":        blocked_by,
+        "actions":          actions,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -298,20 +447,30 @@ def main() -> int:
 
     resolved = resolve_baseline(FIXTURE / "tenant.yaml")
     actual   = run_diff(resolved, BUNDLE, RULES)
+    ca_scan  = json.loads((BUNDLE / "conditional-access.json").read_text(encoding="utf-8"))
+    ca_plan  = compute_ca_plan(resolved, ca_scan)
 
     if args.print:
+        print("=== findings ===")
         print(normalise(actual))
+        print()
+        print("=== ca plan ===")
+        print(normalise(ca_plan))
 
     if args.update:
         EXPECTED.write_text(normalise(actual) + "\n", encoding="utf-8")
+        EXPECTED_CA_PLAN.write_text(normalise(ca_plan) + "\n", encoding="utf-8")
         print(f"updated {EXPECTED}")
+        print(f"updated {EXPECTED_CA_PLAN}")
         return 0
 
-    if not EXPECTED.exists():
-        print(f"expected-findings.json does not exist; run with --update to create it")
-        print(f"actual.summary: {actual['summary']}")
+    if not EXPECTED.exists() or not EXPECTED_CA_PLAN.exists():
+        print(f"expected outputs missing; run with --update to create them")
+        print(f"actual findings.summary: {actual['summary']}")
+        print(f"actual ca-plan.summary:  {ca_plan['summary']}")
         return 1
 
+    rc = 0
     expected = json.loads(EXPECTED.read_text(encoding="utf-8"))
     if normalise(actual) != normalise(expected):
         # Show a brief diff
@@ -331,12 +490,33 @@ def main() -> int:
         if only_e:
             print("  - Missing in actual (in expected):")
             for i in sorted(only_e): print(f"      {i}")
-        return 1
+        rc = 1
 
-    print(f"OK — {actual['summary']['total']} findings match expected:")
+    expected_plan = json.loads(EXPECTED_CA_PLAN.read_text(encoding="utf-8"))
+    if normalise(ca_plan) != normalise(expected_plan):
+        print("=== DRIFT — ca plan vs expected ===")
+        print(f"actual.summary:   {ca_plan['summary']}")
+        print(f"expected.summary: {expected_plan['summary']}")
+        a_ids = { (a.get('action'), a.get('baselineId') or a.get('tenantId')) for a in ca_plan['actions'] }
+        e_ids = { (a.get('action'), a.get('baselineId') or a.get('tenantId')) for a in expected_plan['actions'] }
+        only_a = a_ids - e_ids
+        only_e = e_ids - a_ids
+        if only_a:
+            print("  + Extra in actual:")
+            for i in sorted(only_a, key=lambda x: (x[0] or '', x[1] or '')): print(f"      {i}")
+        if only_e:
+            print("  - Missing in actual:")
+            for i in sorted(only_e, key=lambda x: (x[0] or '', x[1] or '')): print(f"      {i}")
+        rc = 1
+
+    if rc != 0: return rc
+
+    print(f"OK — findings ({actual['summary']['total']}) and ca plan ({ca_plan['summary']}) both match expected")
     for k, v in actual["summary"].items():
         if k == "total": continue
-        print(f"     {k:9} {v}")
+        print(f"     findings.{k:9} {v}")
+    for k, v in ca_plan["summary"].items():
+        print(f"     ca-plan.{k:10} {v}")
     return 0
 
 

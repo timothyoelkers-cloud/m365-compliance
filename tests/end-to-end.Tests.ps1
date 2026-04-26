@@ -20,20 +20,25 @@
 #>
 
 BeforeAll {
-    $script:Repo     = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-    $script:Fixture  = Join-Path $Repo 'tests/fixtures/synthetic-tenant-001'
-    $script:Bundle   = Join-Path $Fixture 'scan-bundle'
-    $script:Tenant   = Join-Path $Fixture 'tenant.yaml'
-    $script:Resolve  = Join-Path $Repo 'scripts/common/Resolve-Baseline.ps1'
-    $script:Compare  = Join-Path $Repo 'scripts/common/Compare-TenantState.ps1'
-    $script:Rules    = Join-Path $Repo 'scripts/common/diff-rules.yaml'
-    $script:Expected = Join-Path $Repo 'tests/expected-findings.json'
+    $script:Repo       = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    $script:Fixture    = Join-Path $Repo 'tests/fixtures/synthetic-tenant-001'
+    $script:Bundle     = Join-Path $Fixture 'scan-bundle'
+    $script:Tenant     = Join-Path $Fixture 'tenant.yaml'
+    $script:Resolve    = Join-Path $Repo 'scripts/common/Resolve-Baseline.ps1'
+    $script:Compare    = Join-Path $Repo 'scripts/common/Compare-TenantState.ps1'
+    $script:Rules      = Join-Path $Repo 'scripts/common/diff-rules.yaml'
+    $script:Expected   = Join-Path $Repo 'tests/expected-findings.json'
+    $script:CaApply    = Join-Path $Repo 'scripts/apply/Set-ConditionalAccess.ps1'
+    $script:CaExpected = Join-Path $Repo 'tests/expected-ca-plan.json'
 
+    $script:TenantId = '00000000-0000-0000-0000-aaaaaaaaaaaa'
     $script:Out      = Join-Path $env:TEMP "m365c-fixture-$(Get-Random)"
     New-Item -ItemType Directory -Path $Out -Force | Out-Null
 
     $script:ResolvedPath = Join-Path $Out 'resolved.json'
     $script:FindingsPath = Join-Path $Out 'findings.json'
+    $script:CaOutDir     = Join-Path $Out 'ca-apply'
+    New-Item -ItemType Directory -Path $CaOutDir -Force | Out-Null
 }
 
 AfterAll {
@@ -131,6 +136,64 @@ Describe 'Synthetic-tenant-001 end-to-end' {
             $deferred = @($actual.findings | Where-Object actionTaken -eq 'deferred')
             $deferred.Count | Should -BeGreaterOrEqual 2
             ($deferred | ForEach-Object workload) | Should -Contain 'powerbi'
+        }
+    }
+
+    Context 'Conditional Access apply — plan / dry-run' {
+
+        It 'runs Set-ConditionalAccess.ps1 in plan mode without throwing' {
+            { & $script:CaApply `
+                -ResolvedBaselinePath $script:ResolvedPath `
+                -ScanBundlePath       $script:Bundle `
+                -TenantId             $script:TenantId `
+                -OutputDir            $script:CaOutDir `
+                -Mode                 plan `
+                | Out-Null } | Should -Not -Throw
+
+            Test-Path (Join-Path $script:CaOutDir 'plan.json') | Should -BeTrue
+        }
+
+        It 'produces a CA plan whose summary matches expected-ca-plan.json' {
+            $actual   = Get-Content -Raw (Join-Path $script:CaOutDir 'plan.json') | ConvertFrom-Json
+            $expected = Get-Content -Raw $script:CaExpected | ConvertFrom-Json
+
+            $actual.workload  | Should -Be 'conditional-access'
+            $actual.mode      | Should -Be 'plan'
+            $actual.tenantId  | Should -Be $script:TenantId
+
+            $actual.summary.create    | Should -Be $expected.summary.create
+            $actual.summary.patch     | Should -Be $expected.summary.patch
+            $actual.summary.unchanged | Should -Be $expected.summary.unchanged
+            $actual.summary.remove    | Should -Be $expected.summary.remove
+        }
+
+        It 'classifies untracked tenant policies (cis-l1-ca-002 was replaced by nis2-ca-030)' {
+            $actual = Get-Content -Raw (Join-Path $script:CaOutDir 'plan.json') | ConvertFrom-Json
+            $untracked = @($actual.actions | Where-Object action -eq 'untracked')
+            $untracked.Count | Should -BeGreaterOrEqual 1
+            ($untracked | ForEach-Object displayName) | Should -Contain 'CIS L1 — Require MFA for all users'
+        }
+
+        It 'flags a patch action for the legacy-auth-block policy (drift in conditions)' {
+            $actual = Get-Content -Raw (Join-Path $script:CaOutDir 'plan.json') | ConvertFrom-Json
+            $patch = $actual.actions | Where-Object { $_.action -eq 'patch' -and $_.baselineId -eq 'cis-l1-ca-001-block-legacy-auth' } | Select-Object -First 1
+            $patch | Should -Not -BeNullOrEmpty
+            $patch.diffFields | Should -Contain 'conditions'
+        }
+
+        It 'refuses apply mode without -ApprovalRef' {
+            { & $script:CaApply `
+                -ResolvedBaselinePath $script:ResolvedPath `
+                -ScanBundlePath       $script:Bundle `
+                -TenantId             $script:TenantId `
+                -OutputDir            $script:CaOutDir `
+                -Mode                 apply `
+                | Out-Null } | Should -Throw -ExpectedMessage '*ApprovalRef*'
+        }
+
+        It 'produces empty blockedBy when baseline + fixture invariants hold' {
+            $actual = Get-Content -Raw (Join-Path $script:CaOutDir 'plan.json') | ConvertFrom-Json
+            $actual.blockedBy.Count | Should -Be 0
         }
     }
 }

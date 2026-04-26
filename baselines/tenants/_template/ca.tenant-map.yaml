@@ -1,0 +1,16 @@
+# Conditional Access tenant-policy map.
+#
+# Maps stable baseline policy ids (e.g. cis-l1-ca-001-block-legacy-auth) to the
+# specific Entra CA policy GUID that exists in this tenant. Populated on first
+# successful apply run, then maintained by the orchestrator. Hand-edits permitted
+# but version-control them — drift here causes Set-ConditionalAccess.ps1 to
+# create duplicate policies.
+#
+# When this file is absent, Set-ConditionalAccess.ps1 falls back to displayName
+# matching, which is brittle (any rename in the portal breaks the link).
+
+policies: []
+# - baseline_id:        cis-l1-ca-001-block-legacy-auth
+#   tenant_policy_id:   00000000-0000-0000-0000-000000000000
+#   first_synced_at:    2026-04-26T10:00:00Z
+#   last_synced_at:     2026-04-26T10:00:00Z

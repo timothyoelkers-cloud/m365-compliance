@@ -80,9 +80,23 @@ That's the signal you most want to see, because it's a real bug.
 
 Two-implementation cross-checks are deliberately annoying when they fail — that's their value. Don't bypass.
 
+## What the fixture covers — apply path
+
+Beyond the diff engine, the fixture also exercises [`scripts/apply/Set-ConditionalAccess.ps1`](../scripts/apply/Set-ConditionalAccess.ps1) in `plan` mode. The expected plan ([`expected-ca-plan.json`](expected-ca-plan.json)) asserts:
+
+- 12 `create` actions for baseline CA policies not in the synthetic tenant.
+- 1 `patch` action against `cis-l1-ca-001-block-legacy-auth` (drift in `conditions` because the fixture's tenant policy uses Graph names — `includeUsers` / `excludeGroups` — while the baseline uses our YAML names).
+- 1 `untracked` action against the tenant's `CIS L1 — Require MFA for all users` policy, because `nis2-ca-030-phishing-resistant-all` *replaces* `cis-l1-ca-002-mfa-all-users` at merge time — the original baseline id is gone, so no displayName matches.
+- 0 safety invariant blocks.
+- The script throws when `apply` mode is invoked without `-ApprovalRef`.
+
+The Python verifier ([verify_fixture.py](verify_fixture.py)) ports the planning logic so this assertion runs locally without pwsh; the Pester test runs the canonical PowerShell script in CI.
+
 ## Real bugs this fixture has caught
 
 (Document drift here as it happens — provides a permanent record of why the fixture exists.)
 
 - **2026-04-24** — `cis-l1-l2.yaml` profile claimed in description to be a combined "L1 + L2" profile but was implemented as L2-additive-only. Fixture forced this contradiction into the open by producing only 2 findings on first run instead of the expected ~12. Resolved by clarifying metadata + requiring tenants to layer cis-l1 first.
 - **2026-04-24** — `auto_forwarding_mode: Off` in `cis-l1.yaml` and `dora-overlay.yaml`. YAML 1.1 parses bare `Off` as boolean `false`; Microsoft's `Set-HostedOutboundSpamFilterPolicy -AutoForwardingMode` expects the string `'Off'`. Apply path would have silently rejected the value in production. Fixed by quoting.
+- **2026-04-24** — `evidence-bundle.schema.json` rejected real production bundles because `integrity.signature` was `type: object` only, but `Invoke-TenantScan.ps1` sets it to `null` when no signing cert is supplied. Loosened to `["object", "null"]`.
+- **2026-04-26** (CA apply) — Baseline encoding doesn't match Graph encoding. Baseline YAML uses `include` / `exclude_groups`; Graph cmdlets emit `includeUsers` / `excludeGroups`. Fixture surfaced this as a phantom "drift in conditions" finding on every CA policy. **Not yet fixed** — the right place is a per-workload normalise() function applied before diff. Tracked in scripts/README.md under "What's not here yet". Ship-blocking for production CA apply; not blocking for fixture-only validation.

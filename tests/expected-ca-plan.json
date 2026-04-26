@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0.0",
+  "workload": "conditional-access",
+  "mode": "plan",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "summary": {
+    "create": 12,
+    "patch": 1,
+    "unchanged": 0,
+    "remove": 0
+  },
+  "requiresApproval": false,
+  "approvalRef": null,
+  "blockedBy": [
+    {
+      "rule": "conditions.users.nonempty",
+      "baselineId": "cis-l1-ca-003-admin-mfa-phishing-resistant"
+    },
+    {
+      "rule": "conditions.users.nonempty",
+      "baselineId": "cis-l1-ca-009-admin-sign-in-frequency"
+    },
+    {
+      "rule": "grantControls.nonempty",
+      "baselineId": "cis-l1-ca-009-admin-sign-in-frequency",
+      "detail": "Non-block policy must declare at least one grant control or authenticationStrength"
+    },
+    {
+      "rule": "grantControls.nonempty",
+      "baselineId": "cis-l2-ca-011-unmanaged-web-session-restrictions",
+      "detail": "Non-block policy must declare at least one grant control or authenticationStrength"
+    },
+    {
+      "rule": "conditions.users.nonempty",
+      "baselineId": "nis2-ca-031-cross-tenant-access-tight"
+    }
+  ],
+  "actions": [
+    {
+      "baselineId": "cis-l1-ca-003-admin-mfa-phishing-resistant",
+      "displayName": "CIS L1 — Phishing-resistant MFA for admins",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l1-ca-004-block-high-sign-in-risk",
+      "displayName": "CIS L1 — Block high sign-in risk",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l1-ca-005-password-change-high-user-risk",
+      "displayName": "CIS L1 — Force password change on high user risk",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l1-ca-006-require-compliant-device",
+      "displayName": "CIS L1 — Require compliant or hybrid-joined device",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l1-ca-007-managed-device-for-mfa-registration",
+      "displayName": "CIS L1 — Managed device required for MFA registration",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l1-ca-008-block-device-code-flow",
+      "displayName": "CIS L1 — Block device code sign-in flow",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l1-ca-009-admin-sign-in-frequency",
+      "displayName": "CIS L1 — Admin sign-in frequency 4h, non-persistent browser",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l2-ca-010-block-medium-high-signin-risk",
+      "displayName": "CIS L2 — Block medium or high sign-in risk",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l2-ca-011-unmanaged-web-session-restrictions",
+      "displayName": "CIS L2 — Unmanaged device web session restrictions",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l2-ca-012-country-restriction",
+      "displayName": "CIS L2 — Block access from unapproved countries",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "nis2-ca-030-phishing-resistant-all",
+      "displayName": "NIS 2 — Phishing-resistant MFA for all users",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "nis2-ca-031-cross-tenant-access-tight",
+      "displayName": "NIS 2 — Restrict inbound guest access to allow-listed partner tenants",
+      "action": "create",
+      "reason": "Baseline policy not present in tenant",
+      "currentState": null,
+      "targetState": "enabled"
+    },
+    {
+      "baselineId": "cis-l1-ca-001-block-legacy-auth",
+      "tenantId": "ca-001",
+      "displayName": "CIS L1 — Block legacy authentication",
+      "action": "patch",
+      "reason": "Drift in: conditions",
+      "currentState": "enabled",
+      "targetState": "enabled",
+      "diffFields": [
+        "conditions"
+      ]
+    },
+    {
+      "tenantId": "ca-002",
+      "displayName": "CIS L1 — Require MFA for all users",
+      "action": "untracked",
+      "reason": "Tenant policy not in baseline (apply will leave alone; review)",
+      "currentState": "enabledForReportingButNotEnforced"
+    }
+  ]
+}
