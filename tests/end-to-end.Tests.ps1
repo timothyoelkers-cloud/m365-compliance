@@ -139,6 +139,57 @@ Describe 'Synthetic-tenant-001 end-to-end' {
         }
     }
 
+    Context 'Framework report generator' {
+
+        BeforeAll {
+            $script:ReportTool = Join-Path $script:Repo 'scripts/report/New-FrameworkReport.ps1'
+            $script:ReportDir  = Join-Path $script:Out 'reports'
+            New-Item -ItemType Directory -Path $script:ReportDir -Force | Out-Null
+        }
+
+        It 'generates a CIS M365 report against the fixture findings' {
+            $result = & $script:ReportTool `
+                -Framework        cis-m365 `
+                -FindingsPath     $script:FindingsPath `
+                -OutputPath       (Join-Path $script:ReportDir 'cis-m365.md') `
+                -ResolvedBaselinePath $script:ResolvedPath `
+                -TenantDisplayName 'Synthetic Test Tenant (fixture)'
+            $result.framework        | Should -Be 'cis-m365'
+            $result.refsTotal        | Should -BeGreaterThan 0
+            (Test-Path $result.output) | Should -BeTrue
+
+            $content = Get-Content -Raw $result.output
+            $content | Should -Match '## Headline'
+            $content | Should -Match '## Coverage matrix'
+            $content | Should -Match '## Findings scoped to'
+            $content | Should -Match '## Gaps'
+        }
+
+        It 'generates a DORA report and surfaces drift on Art 9(2)(c)' {
+            $result = & $script:ReportTool `
+                -Framework        dora `
+                -FindingsPath     $script:FindingsPath `
+                -OutputPath       (Join-Path $script:ReportDir 'dora.md')
+            $result.framework | Should -Be 'dora'
+
+            $content = Get-Content -Raw $result.output
+            $content | Should -Match 'DORA'
+            $content | Should -Match 'Art 9\(2\)\(c\).+drift'
+        }
+
+        It 'refuses unknown framework' {
+            { & $script:ReportTool -Framework iso27001 -FindingsPath $script:FindingsPath -OutputPath (Join-Path $script:ReportDir 'iso.md') } | Should -Throw
+        }
+
+        It 'returns headline counts that sum to refsTotal' {
+            $result = & $script:ReportTool `
+                -Framework    nis2 `
+                -FindingsPath $script:FindingsPath `
+                -OutputPath   (Join-Path $script:ReportDir 'nis2.md')
+            ($result.refsCovered + $result.refsDrift + $result.refsPartialOnly + $result.refsUncovered) | Should -Be $result.refsTotal
+        }
+    }
+
     Context 'Conditional Access apply — plan / dry-run' {
 
         It 'runs Set-ConditionalAccess.ps1 in plan mode without throwing' {

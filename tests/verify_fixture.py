@@ -38,8 +38,15 @@ BUNDLE   = FIXTURE / "scan-bundle"
 RULES    = REPO / "scripts" / "common" / "diff-rules.yaml"
 PROFILES = REPO / "baselines" / "profiles"
 GLOBAL   = REPO / "baselines" / "global"
-EXPECTED         = TESTS / "expected-findings.json"
-EXPECTED_CA_PLAN = TESTS / "expected-ca-plan.json"
+MAP_CSV  = REPO / "skills" / "mapping" / "control-map" / "map.csv"
+EXPECTED          = TESTS / "expected-findings.json"
+EXPECTED_CA_PLAN  = TESTS / "expected-ca-plan.json"
+EXPECTED_REPORTS  = {
+    "cis-m365": TESTS / "expected-cis-m365-report.md",
+    "dora":     TESTS / "expected-dora-report.md",
+    "nis2":     TESTS / "expected-nis2-report.md",
+    "hipaa":    TESTS / "expected-hipaa-report.md",
+}
 
 SEVERITY_ORDER = { "critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4 }
 
@@ -538,6 +545,167 @@ def compute_ca_plan(resolved: dict, ca_scan: dict, tenant_map: dict[str, str] | 
 
 
 # ---------------------------------------------------------------------------
+# Framework report generator — mirrors scripts/report/New-FrameworkReport.ps1
+# ---------------------------------------------------------------------------
+
+import csv as _csv
+
+FRAMEWORK_LABELS = {
+    "cis-m365": "CIS Microsoft 365 v6.0.1",
+    "dora":     "DORA — Regulation (EU) 2022/2554",
+    "nis2":     "NIS 2 Directive — Directive (EU) 2022/2555",
+    "hipaa":    "HIPAA — 45 CFR 164",
+}
+
+
+def _load_map() -> list[dict]:
+    with MAP_CSV.open(encoding="utf-8") as fh:
+        return list(_csv.DictReader(fh))
+
+
+def render_framework_report(framework: str, findings_doc: dict, *, tenant_display: str = "") -> str:
+    if framework not in FRAMEWORK_LABELS:
+        raise SystemExit(f"unknown framework: {framework}")
+
+    rows = [r for r in _load_map() if r["framework"] == framework]
+    if not rows:
+        raise SystemExit(f"no map rows for framework={framework}")
+
+    # Filter findings to this framework
+    fw_findings = [
+        f for f in findings_doc.get("findings", [])
+        if any(fr.get("framework") == framework for fr in (f.get("frameworkRefs") or []))
+    ]
+    findings_by_control: dict[str, list[dict]] = {}
+    for f in fw_findings:
+        findings_by_control.setdefault(f["baselineControlId"], []).append(f)
+
+    # Coverage per framework_ref
+    by_ref: dict[str, list[dict]] = {}
+    for r in rows:
+        by_ref.setdefault(r["framework_ref"], []).append(r)
+
+    coverage = []
+    for ref in sorted(by_ref.keys()):
+        ref_rows  = by_ref[ref]
+        primary   = [r for r in ref_rows if r["coverage_type"] == "primary"]
+        partial   = [r for r in ref_rows if r["coverage_type"] == "partial"]
+        contrib   = [r for r in ref_rows if r["coverage_type"] == "contributes-to"]
+
+        failing: list[str] = []
+        for r in ref_rows:
+            for f in findings_by_control.get(r["control_id"], []):
+                if f.get("actionTaken") != "unchanged":
+                    failing.append(r["control_id"])
+
+        if not primary and not partial:
+            status = "uncovered"
+        elif not primary:
+            status = "partial-only"
+        else:
+            status = "covered"
+        if failing:
+            status = "drift"
+
+        coverage.append({
+            "ref": ref, "status": status,
+            "primary":  [r["control_id"] for r in primary],
+            "partial":  [r["control_id"] for r in partial],
+            "contrib":  [r["control_id"] for r in contrib],
+            "failing":  list(dict.fromkeys(failing)),  # dedupe preserve order
+        })
+
+    # Evidence index
+    evidence: dict[str, set[str]] = {}
+    for r in rows:
+        evidence.setdefault(r["evidence_artefact"], set()).add(r["framework_ref"])
+
+    label = FRAMEWORK_LABELS[framework]
+    tenant = tenant_display or findings_doc.get("tenantId") or "unknown"
+    runId  = findings_doc.get("runId") or "unknown"
+
+    out = []
+    push = out.append
+
+    push(f"# {label} — Audit-Prep Report\n")
+    push(f"**Tenant:** {tenant}\n")
+    push(f"**Run id:** {runId}  ")
+    push(f"**Generated:** _deterministic-fixture_  ")
+    push(f"**Findings file:** findings.json\n")
+
+    total       = len(coverage)
+    covered     = sum(1 for c in coverage if c["status"] == "covered")
+    drift       = sum(1 for c in coverage if c["status"] == "drift")
+    partial_only= sum(1 for c in coverage if c["status"] == "partial-only")
+    uncovered   = sum(1 for c in coverage if c["status"] == "uncovered")
+
+    push("## Headline\n")
+    push("| Status | Count |")
+    push("|---|---|")
+    push(f"| Covered (primary deployed, no drift) | {covered} |")
+    push(f"| Drift (control deployed but failing) | {drift} |")
+    push(f"| Partial-only (no primary control deployed) | {partial_only} |")
+    push(f"| Uncovered (no mapped control deployed) | {uncovered} |")
+    push(f"| **Total mapped framework references** | **{total}** |\n")
+
+    status_order = { "covered": 0, "drift": 1, "partial-only": 2, "uncovered": 3 }
+
+    push("## Coverage matrix\n")
+    push("| Framework reference | Status | Primary controls | Partial controls | Failing |")
+    push("|---|---|---|---|---|")
+    for c in sorted(coverage, key=lambda x: (status_order[x["status"]], x["ref"])):
+        prim = "<br>".join(c["primary"]) if c["primary"] else "—"
+        part = "<br>".join(c["partial"]) if c["partial"] else "—"
+        fail = "<br>".join(c["failing"]) if c["failing"] else "—"
+        push(f"| {c['ref']} | {c['status']} | {prim} | {part} | {fail} |")
+    push("")
+
+    push(f"## Findings scoped to {label}\n")
+    if not fw_findings:
+        push("_No findings tagged with this framework. Either the tenant matches the deployed baseline (good) or the diff-rules don't yet cover the framework's controls (gap)._\n")
+    else:
+        for severity in ("critical", "high", "medium", "low", "info"):
+            bucket = [f for f in fw_findings if f.get("severity") == severity]
+            if not bucket: continue
+            push(f"### {severity}\n")
+            for f in bucket:
+                this_ref = next((fr["ref"] for fr in f["frameworkRefs"] if fr["framework"] == framework), "")
+                push(f"- **{f['id']}** ({f['workload']})  ")
+                push(f"  Maps to: `{this_ref}`  ")
+                push(f"  Current: `{f.get('currentValue')}` — Desired: `{f.get('desiredValue')}`  ")
+                push(f"  Action: {f.get('actionTaken')} — Evidence: `{f.get('evidenceArtefact')}`\n")
+
+    push("## Evidence index\n")
+    push("| Evidence artefact | Backing framework references |")
+    push("|---|---|")
+    for art in sorted(evidence.keys()):
+        refs = "<br>".join(sorted(evidence[art]))
+        push(f"| `{art}` | {refs} |")
+    push("")
+
+    push("## Gaps\n")
+    gaps = [c for c in coverage if c["status"] in ("uncovered", "partial-only", "drift")]
+    if not gaps:
+        push("_No gaps for the mapped scope. Note: this scope is limited to controls present in skills/mapping/control-map/map.csv. Manual review is still required for framework requirements outside this map._\n")
+    else:
+        push("| Framework reference | Status | Action |")
+        push("|---|---|---|")
+        action_for = {
+            "drift":        "Investigate failing controls; remediate to baseline",
+            "partial-only": "Add a primary control or accept defence-in-depth posture",
+            "uncovered":    "No deployed control maps to this requirement — review baseline scope",
+        }
+        for g in sorted(gaps, key=lambda x: ({"drift":0,"partial-only":1,"uncovered":2}[x["status"]], x["ref"])):
+            push(f"| {g['ref']} | {g['status']} | {action_for[g['status']]} |")
+        push("")
+
+    push("---\n")
+    push("_Generated by `scripts/report/New-FrameworkReport.ps1`. The mapped scope is limited to controls present in `skills/mapping/control-map/map.csv`. Requirements outside the map are not assessed automatically — see the framework skill for manual review guidance._")
+
+    return "\n".join(out) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -574,6 +742,10 @@ def main() -> int:
         EXPECTED_CA_PLAN.write_text(normalise(ca_plan) + "\n", encoding="utf-8")
         print(f"updated {EXPECTED}")
         print(f"updated {EXPECTED_CA_PLAN}")
+        for fw, p in EXPECTED_REPORTS.items():
+            md = render_framework_report(fw, actual, tenant_display="Synthetic Test Tenant (fixture)")
+            p.write_text(md, encoding="utf-8")
+            print(f"updated {p}")
         return 0
 
     if not EXPECTED.exists() or not EXPECTED_CA_PLAN.exists():
@@ -621,9 +793,32 @@ def main() -> int:
             for i in sorted(only_e, key=lambda x: (x[0] or '', x[1] or '')): print(f"      {i}")
         rc = 1
 
+    # Per-framework reports
+    for fw, p in EXPECTED_REPORTS.items():
+        if not p.exists():
+            print(f"=== DRIFT — expected report missing: {p}")
+            rc = 1; continue
+        actual_md   = render_framework_report(fw, actual, tenant_display="Synthetic Test Tenant (fixture)")
+        expected_md = p.read_text(encoding="utf-8")
+        if actual_md != expected_md:
+            print(f"=== DRIFT — {fw} report")
+            # Brief diff: compare line counts + first divergence
+            a_lines = actual_md.splitlines()
+            e_lines = expected_md.splitlines()
+            for i, (a, e) in enumerate(zip(a_lines, e_lines)):
+                if a != e:
+                    print(f"   first divergence at line {i+1}:")
+                    print(f"     actual:   {a[:140]}")
+                    print(f"     expected: {e[:140]}")
+                    break
+            else:
+                print(f"   line count differs: actual={len(a_lines)} expected={len(e_lines)}")
+            rc = 1
+
     if rc != 0: return rc
 
     print(f"OK — findings ({actual['summary']['total']}) and ca plan ({ca_plan['summary']}) both match expected")
+    print(f"     framework reports: {', '.join(sorted(EXPECTED_REPORTS.keys()))} — all match")
     for k, v in actual["summary"].items():
         if k == "total": continue
         print(f"     findings.{k:9} {v}")

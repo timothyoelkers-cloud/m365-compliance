@@ -22,8 +22,10 @@ scripts/
 │   ├── Invoke-DefenderScan.ps1
 │   ├── Invoke-IntuneScan.ps1
 │   └── Invoke-PowerBIScan.ps1
-└── apply/                          Write — reconciles tenant to baseline (gated)
-    └── Set-ConditionalAccess.ps1   Conditional Access (template; other workloads tbd)
+├── apply/                          Write — reconciles tenant to baseline (gated)
+│   └── Set-ConditionalAccess.ps1   Conditional Access (template; other workloads tbd)
+└── report/                         Customer / auditor-facing markdown reports
+    └── New-FrameworkReport.ps1     Framework-scoped audit-prep report (cis-m365, dora, nis2, hipaa)
 ```
 
 ## Design principles
@@ -105,6 +107,31 @@ Plan output is **fully testable against the synthetic fixture** (no tenant requi
 ### Tenant policy mapping
 
 CA policies are matched to baseline ids via `baselines/tenants/<tenant>/ca.tenant-map.yaml` (template at [baselines/tenants/_template/ca.tenant-map.yaml](../baselines/tenants/_template/ca.tenant-map.yaml)). When the map is absent, the script falls back to displayName matching — brittle, but workable on first sync. After the first apply, the orchestrator should write the map back.
+
+## Reporting
+
+[New-FrameworkReport.ps1](report/New-FrameworkReport.ps1) generates an audit-prep markdown document scoped to a single framework. Inputs: a `findings.json` (output of `Compare-TenantState.ps1`) plus the `control-map.csv`. Optional: the resolved baseline (sharpens the "deployed" check).
+
+```powershell
+pwsh scripts/report/New-FrameworkReport.ps1 `
+    -Framework    dora `
+    -FindingsPath ./evidence/<tenant>/<ts>/findings.json `
+    -ResolvedBaselinePath ./resolved-baselines/<tenant>.json `
+    -OutputPath   ./reports/<tenant>-dora-<ts>.md `
+    -TenantDisplayName "Acme Bank Ltd"
+```
+
+Output sections:
+
+- **Headline** — covered / drift / partial-only / uncovered framework references.
+- **Coverage matrix** — one row per framework reference with primary + partial controls and any failing.
+- **Findings** — scoped to the framework, grouped by severity, with current/desired/evidence.
+- **Evidence index** — which scan artefacts back which framework references (auditor handoff).
+- **Gaps** — references with no primary deployed, drift, or no coverage at all, with proposed action.
+
+The mapped scope is limited to controls in `skills/mapping/control-map/map.csv`. Requirements outside the map need manual review against the framework skill.
+
+Sample reports against the synthetic fixture: [tests/expected-cis-m365-report.md](../tests/expected-cis-m365-report.md), [tests/expected-dora-report.md](../tests/expected-dora-report.md), [tests/expected-nis2-report.md](../tests/expected-nis2-report.md), [tests/expected-hipaa-report.md](../tests/expected-hipaa-report.md).
 
 ## What's not here yet
 
