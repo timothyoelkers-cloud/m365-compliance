@@ -30,6 +30,8 @@ BeforeAll {
     $script:Expected   = Join-Path $Repo 'tests/expected-findings.json'
     $script:CaApply    = Join-Path $Repo 'scripts/apply/Set-ConditionalAccess.ps1'
     $script:CaExpected = Join-Path $Repo 'tests/expected-ca-plan.json'
+    $script:PvApply    = Join-Path $Repo 'scripts/apply/Set-PurviewBaseline.ps1'
+    $script:PvExpected = Join-Path $Repo 'tests/expected-purview-plan.json'
 
     $script:TenantId = '00000000-0000-0000-0000-aaaaaaaaaaaa'
     $script:Out      = Join-Path $env:TEMP "m365c-fixture-$(Get-Random)"
@@ -38,7 +40,9 @@ BeforeAll {
     $script:ResolvedPath = Join-Path $Out 'resolved.json'
     $script:FindingsPath = Join-Path $Out 'findings.json'
     $script:CaOutDir     = Join-Path $Out 'ca-apply'
+    $script:PvOutDir     = Join-Path $Out 'purview-apply'
     New-Item -ItemType Directory -Path $CaOutDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $PvOutDir -Force | Out-Null
 }
 
 AfterAll {
@@ -142,8 +146,9 @@ Describe 'Synthetic-tenant-001 end-to-end' {
     Context 'Framework report generator' {
 
         BeforeAll {
-            $script:ReportTool = Join-Path $script:Repo 'scripts/report/New-FrameworkReport.ps1'
-            $script:ReportDir  = Join-Path $script:Out 'reports'
+            $script:ReportTool   = Join-Path $script:Repo 'scripts/report/New-FrameworkReport.ps1'
+            $script:ExecSumTool  = Join-Path $script:Repo 'scripts/report/New-ExecutiveSummary.ps1'
+            $script:ReportDir    = Join-Path $script:Out 'reports'
             New-Item -ItemType Directory -Path $script:ReportDir -Force | Out-Null
         }
 
@@ -187,6 +192,43 @@ Describe 'Synthetic-tenant-001 end-to-end' {
                 -FindingsPath $script:FindingsPath `
                 -OutputPath   (Join-Path $script:ReportDir 'nis2.md')
             ($result.refsCovered + $result.refsDrift + $result.refsPartialOnly + $result.refsUncovered) | Should -Be $result.refsTotal
+        }
+    }
+
+    Context 'Executive summary' {
+
+        It 'generates a multi-framework executive summary' {
+            $result = & $script:ExecSumTool `
+                -FindingsPath      $script:FindingsPath `
+                -OutputPath        (Join-Path $script:ReportDir 'executive-summary.md') `
+                -TenantDisplayName 'Synthetic Test Tenant (fixture)'
+            (Test-Path $result.output) | Should -BeTrue
+            $result.frameworks  | Should -Contain 'cis-m365'
+            $result.frameworks  | Should -Contain 'dora'
+            $result.totalRefs   | Should -BeGreaterThan 0
+            $result.overallScore | Should -BeGreaterThan 0
+        }
+
+        It 'has all required sections' {
+            $content = Get-Content -Raw (Join-Path $script:ReportDir 'executive-summary.md')
+            $content | Should -Match '## Status snapshot'
+            $content | Should -Match '## Top 10 findings'
+            $content | Should -Match '## Drift register'
+            $content | Should -Match '## Uncovered register'
+            $content | Should -Match '## Recommended next actions'
+        }
+
+        It 'reports the same drift count as the per-framework reports add up to' {
+            $exec = & $script:ExecSumTool `
+                -FindingsPath $script:FindingsPath `
+                -OutputPath   (Join-Path $script:ReportDir 'executive-summary.md')
+            $sum = 0
+            foreach ($fw in @('cis-m365','dora','nis2','hipaa')) {
+                $r = & $script:ReportTool -Framework $fw -FindingsPath $script:FindingsPath `
+                    -OutputPath (Join-Path $script:ReportDir "$fw-2.md")
+                $sum += $r.refsDrift
+            }
+            $exec.drift | Should -Be $sum
         }
     }
 
@@ -245,6 +287,65 @@ Describe 'Synthetic-tenant-001 end-to-end' {
         It 'produces empty blockedBy when baseline + fixture invariants hold' {
             $actual = Get-Content -Raw (Join-Path $script:CaOutDir 'plan.json') | ConvertFrom-Json
             $actual.blockedBy.Count | Should -Be 0
+        }
+    }
+
+    Context 'Purview apply — plan / dry-run' {
+
+        It 'runs Set-PurviewBaseline.ps1 in plan mode without throwing' {
+            { & $script:PvApply `
+                -ResolvedBaselinePath $script:ResolvedPath `
+                -ScanBundlePath       $script:Bundle `
+                -TenantId             $script:TenantId `
+                -OutputDir            $script:PvOutDir `
+                -Mode                 plan `
+                | Out-Null } | Should -Not -Throw
+
+            Test-Path (Join-Path $script:PvOutDir 'plan.json') | Should -BeTrue
+        }
+
+        It 'produces a plan whose summary matches expected-purview-plan.json' {
+            $actual   = Get-Content -Raw (Join-Path $script:PvOutDir 'plan.json') | ConvertFrom-Json
+            $expected = Get-Content -Raw $script:PvExpected | ConvertFrom-Json
+
+            $actual.workload | Should -Be 'purview'
+            $actual.tenantId | Should -Be $script:TenantId
+
+            $actual.summary.enable           | Should -Be $expected.summary.enable
+            $actual.summary.create           | Should -Be $expected.summary.create
+            $actual.summary.extendRetention  | Should -Be $expected.summary.extendRetention
+            $actual.summary.shortenRetention | Should -Be $expected.summary.shortenRetention
+            $actual.summary.unchanged        | Should -Be $expected.summary.unchanged
+        }
+
+        It 'classifies UAL as unchanged (fixture matches baseline)' {
+            $actual = Get-Content -Raw (Join-Path $script:PvOutDir 'plan.json') | ConvertFrom-Json
+            $ual = $actual.actions | Where-Object { $_.id -eq 'purview.unified_audit_log_enabled' } | Select-Object -First 1
+            $ual | Should -Not -BeNullOrEmpty
+            $ual.action | Should -Be 'unchanged'
+        }
+
+        It 'flags retention extension when baseline (180d) > fixture (90d)' {
+            $actual = Get-Content -Raw (Join-Path $script:PvOutDir 'plan.json') | ConvertFrom-Json
+            $ret = $actual.actions | Where-Object { $_.id -eq 'purview.audit_retention_days' } | Select-Object -First 1
+            $ret | Should -Not -BeNullOrEmpty
+            $ret.action | Should -Be 'extend-retention'
+        }
+
+        It 'flags create actions for baseline-declared label/DLP policies absent in fixture' {
+            $actual = Get-Content -Raw (Join-Path $script:PvOutDir 'plan.json') | ConvertFrom-Json
+            $creates = @($actual.actions | Where-Object action -eq 'create')
+            $creates.Count | Should -BeGreaterOrEqual 2
+        }
+
+        It 'refuses apply mode without -ApprovalRef' {
+            { & $script:PvApply `
+                -ResolvedBaselinePath $script:ResolvedPath `
+                -ScanBundlePath       $script:Bundle `
+                -TenantId             $script:TenantId `
+                -OutputDir            $script:PvOutDir `
+                -Mode                 apply `
+                | Out-Null } | Should -Throw -ExpectedMessage '*ApprovalRef*'
         }
     }
 }

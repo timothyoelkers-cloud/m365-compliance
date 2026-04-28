@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "1.0.0",
+  "workload": "purview",
+  "mode": "plan",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "summary": {
+    "enable": 0,
+    "create": 3,
+    "extendRetention": 1,
+    "shortenRetention": 0,
+    "unchanged": 1
+  },
+  "requiresApproval": false,
+  "approvalRef": null,
+  "blockedBy": [],
+  "actions": [
+    {
+      "id": "purview.dlp_policy.dlp-general-starter",
+      "setting": "dlp_policy",
+      "action": "create",
+      "reason": "Baseline-declared policy not present in tenant",
+      "currentValue": null,
+      "targetValue": "dlp-general-starter",
+      "targetMode": "test_with_notifications"
+    },
+    {
+      "id": "purview.dlp_policy.dlp-nis2-operational-data",
+      "setting": "dlp_policy",
+      "action": "create",
+      "reason": "Baseline-declared policy not present in tenant",
+      "currentValue": null,
+      "targetValue": "dlp-nis2-operational-data",
+      "targetMode": "enforce"
+    },
+    {
+      "id": "purview.label_policy.pol-labels-all-users",
+      "setting": "label_policy",
+      "action": "create",
+      "reason": "Baseline-declared policy not present in tenant",
+      "currentValue": null,
+      "targetValue": "pol-labels-all-users"
+    },
+    {
+      "id": "purview.audit_retention_days",
+      "setting": "AuditLogAgeLimit",
+      "action": "extend-retention",
+      "reason": "Baseline asks for longer retention",
+      "currentValue": "90.00:00:00",
+      "targetValue": "365 days"
+    },
+    {
+      "id": "purview.unified_audit_log_enabled",
+      "setting": "UnifiedAuditLogIngestionEnabled",
+      "action": "unchanged",
+      "reason": "Tenant matches baseline",
+      "currentValue": true,
+      "targetValue": true
+    }
+  ]
+}

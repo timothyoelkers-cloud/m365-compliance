@@ -23,9 +23,11 @@ scripts/
 │   ├── Invoke-IntuneScan.ps1
 │   └── Invoke-PowerBIScan.ps1
 ├── apply/                          Write — reconciles tenant to baseline (gated)
-│   └── Set-ConditionalAccess.ps1   Conditional Access (template; other workloads tbd)
+│   ├── Set-ConditionalAccess.ps1   Conditional Access — full per-policy plan/apply/rollback
+│   └── Set-PurviewBaseline.ps1     Purview tenant-wide settings (UAL, retention, label/DLP gap detection)
 └── report/                         Customer / auditor-facing markdown reports
-    └── New-FrameworkReport.ps1     Framework-scoped audit-prep report (cis-m365, dora, nis2, hipaa)
+    ├── New-FrameworkReport.ps1     Framework-scoped audit-prep report (cis-m365, dora, nis2, hipaa)
+    └── New-ExecutiveSummary.ps1    Multi-framework cover doc (status snapshot + top findings + drift register)
 ```
 
 ## Design principles
@@ -104,6 +106,25 @@ Safety invariants (apply refuses if any are violated):
 
 Plan output is **fully testable against the synthetic fixture** (no tenant required) — see [tests/end-to-end.Tests.ps1](../tests/end-to-end.Tests.ps1) and [tests/verify_fixture.py](../tests/verify_fixture.py).
 
+### Purview apply
+
+[Set-PurviewBaseline.ps1](apply/Set-PurviewBaseline.ps1) covers the same plan/apply/rollback shape against tenant-wide Purview settings. Distinct from CA in that there's no per-policy GUID mapping — most settings are tenant singletons.
+
+Action vocabulary:
+
+| Action | When |
+|---|---|
+| `enable` | Tenant flag is off, baseline asks for on (e.g. UAL toggle). |
+| `extend-retention` | Baseline retention > current. Always allowed. |
+| `shorten-retention` | Baseline retention < current. **Refused without `-ApprovalRef containing 'retention-reduce'`** (effectively destructive). |
+| `create` | Baseline declares a label / DLP policy not present in tenant. v1 emits a deferred change record — full label/DLP creation belongs to dedicated apply primitives (`Set-PurviewLabels.ps1` / `Set-PurviewDlp.ps1`, planned). |
+| `unchanged` | Tenant matches baseline. |
+
+Safety invariants enforced before apply:
+
+- **UAL is never silently disabled.** A baseline asking for `unified_audit_log_enabled: false` against a tenant that has it on is treated as a destructive control change and refused at plan time.
+- **Audit retention reductions require explicit approval** (`-ApprovalRef` containing `retention-reduce`).
+
 ### Tenant policy mapping
 
 CA policies are matched to baseline ids via `baselines/tenants/<tenant>/ca.tenant-map.yaml` (template at [baselines/tenants/_template/ca.tenant-map.yaml](../baselines/tenants/_template/ca.tenant-map.yaml)). When the map is absent, the script falls back to displayName matching — brittle, but workable on first sync. After the first apply, the orchestrator should write the map back.
@@ -132,6 +153,18 @@ Output sections:
 The mapped scope is limited to controls in `skills/mapping/control-map/map.csv`. Requirements outside the map need manual review against the framework skill.
 
 Sample reports against the synthetic fixture: [tests/expected-cis-m365-report.md](../tests/expected-cis-m365-report.md), [tests/expected-dora-report.md](../tests/expected-dora-report.md), [tests/expected-nis2-report.md](../tests/expected-nis2-report.md), [tests/expected-hipaa-report.md](../tests/expected-hipaa-report.md).
+
+### Multi-framework executive summary
+
+[New-ExecutiveSummary.ps1](report/New-ExecutiveSummary.ps1) produces a single board-room ready document covering all configured frameworks. Sections:
+
+- **Status snapshot** — one row per framework with covered / drift / partial-only / uncovered / total / score, plus a combined row. Score = `(covered + 0.5 × partial-only) / total`.
+- **Top N findings** — sorted by severity, then by how many frameworks each finding affects (multi-framework findings rank higher).
+- **Drift register** — every (framework, ref) pair with at least one failing control.
+- **Uncovered register** — every reference with no deployed control.
+- **Recommended next actions** — prioritised by drift > uncovered > partial.
+
+Sample: [tests/expected-executive-summary.md](../tests/expected-executive-summary.md).
 
 ## What's not here yet
 

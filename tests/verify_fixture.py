@@ -47,6 +47,8 @@ EXPECTED_REPORTS  = {
     "nis2":     TESTS / "expected-nis2-report.md",
     "hipaa":    TESTS / "expected-hipaa-report.md",
 }
+EXPECTED_EXEC_SUMMARY = TESTS / "expected-executive-summary.md"
+EXPECTED_PURVIEW_PLAN = TESTS / "expected-purview-plan.json"
 
 SEVERITY_ORDER = { "critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4 }
 
@@ -545,6 +547,135 @@ def compute_ca_plan(resolved: dict, ca_scan: dict, tenant_map: dict[str, str] | 
 
 
 # ---------------------------------------------------------------------------
+# Purview apply planner — mirrors scripts/apply/Set-PurviewBaseline.ps1
+# ---------------------------------------------------------------------------
+
+def compute_purview_plan(resolved: dict, purview_scan: dict, *, approval_ref: str | None = None) -> dict:
+    target = resolved.get("target") or {}
+    bp = target.get("purview") or {}
+    sual = purview_scan.get("unifiedAuditLog") or {}
+
+    actions: list[dict] = []
+    blocked_by: list[dict] = []
+
+    # UAL
+    desired_ual = bp.get("unified_audit_log_enabled")
+    current_ual = sual.get("UnifiedAuditLogIngestionEnabled")
+    if desired_ual is not None:
+        if current_ual == desired_ual:
+            actions.append({
+                "id": "purview.unified_audit_log_enabled", "setting": "UnifiedAuditLogIngestionEnabled",
+                "action": "unchanged", "reason": "Tenant matches baseline",
+                "currentValue": current_ual, "targetValue": desired_ual,
+            })
+        elif current_ual is True and desired_ual is False:
+            blocked_by.append({
+                "rule": "ual.never-silently-disabled",
+                "detail": "Baseline asks for UAL=false while tenant has it enabled. Refusing — disabling audit-log ingestion is a destructive control change that requires a separate, explicit operation.",
+            })
+        else:
+            actions.append({
+                "id": "purview.unified_audit_log_enabled", "setting": "UnifiedAuditLogIngestionEnabled",
+                "action": "enable", "reason": "Baseline requires UAL on; tenant has it off",
+                "currentValue": current_ual, "targetValue": desired_ual,
+            })
+
+    # Audit retention
+    desired_ret = bp.get("audit_retention_days")
+    current_ret = sual.get("AuditLogAgeLimit")
+    if desired_ret is not None:
+        current_ret_days: int | None = None
+        if isinstance(current_ret, str):
+            m = re.match(r"^(\d+)\.", current_ret)
+            if m: current_ret_days = int(m.group(1))
+        elif isinstance(current_ret, int):
+            current_ret_days = current_ret
+        if current_ret_days == desired_ret:
+            actions.append({
+                "id": "purview.audit_retention_days", "setting": "AuditLogAgeLimit",
+                "action": "unchanged", "reason": "Tenant retention matches baseline",
+                "currentValue": current_ret, "targetValue": f"{desired_ret} days",
+            })
+        elif current_ret_days is not None and current_ret_days > desired_ret:
+            if not approval_ref or "retention-reduce" not in approval_ref:
+                blocked_by.append({
+                    "rule": "audit.retention.no-silent-reduce",
+                    "detail": f"Baseline retention ({desired_ret} d) is shorter than current ({current_ret_days} d). Provide -ApprovalRef containing 'retention-reduce' to confirm intent.",
+                })
+            else:
+                actions.append({
+                    "id": "purview.audit_retention_days", "setting": "AuditLogAgeLimit",
+                    "action": "shorten-retention",
+                    "reason": f"Baseline retention {desired_ret} d is shorter than current {current_ret_days} d (approved)",
+                    "currentValue": f"{current_ret_days} days", "targetValue": f"{desired_ret} days",
+                })
+        else:
+            actions.append({
+                "id": "purview.audit_retention_days", "setting": "AuditLogAgeLimit",
+                "action": "extend-retention", "reason": "Baseline asks for longer retention",
+                "currentValue": current_ret, "targetValue": f"{desired_ret} days",
+            })
+
+    # Label policies
+    desired_lps = bp.get("label_policies") or []
+    current_lps = purview_scan.get("labelPolicies") or []
+    current_lp_names = [lp.get("Name") for lp in current_lps]
+    for lp in desired_lps:
+        if not lp: continue
+        bid = lp.get("id")
+        present = False
+        for cn in current_lp_names:
+            if cn == bid: present = True; break
+            if cn and bid and bid in cn: present = True; break
+        actions.append({
+            "id": f"purview.label_policy.{bid}", "setting": "label_policy",
+            "action": "unchanged" if present else "create",
+            "reason": "Tenant already has a matching label policy" if present else "Baseline-declared policy not present in tenant",
+            "currentValue": bid if present else None, "targetValue": bid,
+        })
+
+    # DLP policies
+    desired_dlp = bp.get("dlp_policies") or []
+    current_dlp = purview_scan.get("dlpPolicies") or []
+    current_dlp_names = [d.get("Name") for d in current_dlp]
+    for d in desired_dlp:
+        if not d: continue
+        bid = d.get("id")
+        present = False
+        for cn in current_dlp_names:
+            if cn == bid: present = True; break
+            if cn and bid and bid in cn: present = True; break
+        actions.append({
+            "id": f"purview.dlp_policy.{bid}", "setting": "dlp_policy",
+            "action": "unchanged" if present else "create",
+            "reason": "Tenant already has a matching DLP policy" if present else "Baseline-declared policy not present in tenant",
+            "currentValue": bid if present else None, "targetValue": bid,
+            "targetMode": d.get("mode"),
+        })
+
+    order = { "enable": 0, "create": 1, "extend-retention": 2, "shorten-retention": 3, "unchanged": 4 }
+    actions.sort(key=lambda a: (order[a["action"]], a["id"]))
+
+    return {
+        "schemaVersion":    "1.0.0",
+        "workload":         "purview",
+        "mode":             "plan",
+        "tenantId":         resolved["tenant"]["id"],
+        "summary": {
+            "enable":           sum(1 for a in actions if a["action"] == "enable"),
+            "create":           sum(1 for a in actions if a["action"] == "create"),
+            "extendRetention":  sum(1 for a in actions if a["action"] == "extend-retention"),
+            "shortenRetention": sum(1 for a in actions if a["action"] == "shorten-retention"),
+            "unchanged":        sum(1 for a in actions if a["action"] == "unchanged"),
+        },
+        "requiresApproval": False,
+        "approvalRef":      None,
+        "blockedBy":        blocked_by,
+        "actions":          actions,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Framework report generator — mirrors scripts/report/New-FrameworkReport.ps1
 # ---------------------------------------------------------------------------
 
@@ -561,6 +692,163 @@ FRAMEWORK_LABELS = {
 def _load_map() -> list[dict]:
     with MAP_CSV.open(encoding="utf-8") as fh:
         return list(_csv.DictReader(fh))
+
+
+def _framework_coverage(framework: str, findings_doc: dict) -> dict | None:
+    rows = [r for r in _load_map() if r["framework"] == framework]
+    if not rows: return None
+
+    by_control: dict[str, list[dict]] = {}
+    for f in findings_doc.get("findings", []):
+        if any(fr.get("framework") == framework for fr in (f.get("frameworkRefs") or [])):
+            by_control.setdefault(f["baselineControlId"], []).append(f)
+
+    by_ref: dict[str, list[dict]] = {}
+    for r in rows: by_ref.setdefault(r["framework_ref"], []).append(r)
+
+    coverage = []
+    for ref in sorted(by_ref.keys()):
+        ref_rows = by_ref[ref]
+        primary  = [r for r in ref_rows if r["coverage_type"] == "primary"]
+        partial  = [r for r in ref_rows if r["coverage_type"] == "partial"]
+        failing: list[str] = []
+        for r in ref_rows:
+            for f in by_control.get(r["control_id"], []):
+                if f.get("actionTaken") != "unchanged":
+                    failing.append(r["control_id"])
+        if not primary and not partial: status = "uncovered"
+        elif not primary:               status = "partial-only"
+        else:                           status = "covered"
+        if failing:                     status = "drift"
+        coverage.append({ "ref": ref, "status": status, "failing": list(dict.fromkeys(failing)) })
+
+    total       = len(coverage)
+    covered     = sum(1 for c in coverage if c["status"] == "covered")
+    drift       = sum(1 for c in coverage if c["status"] == "drift")
+    partial_only= sum(1 for c in coverage if c["status"] == "partial-only")
+    uncovered   = sum(1 for c in coverage if c["status"] == "uncovered")
+    score       = round(((100 * covered) + (50 * partial_only)) / total, 1) if total else 0
+
+    return {
+        "framework": framework,
+        "label":     FRAMEWORK_LABELS[framework],
+        "total":     total, "covered": covered, "drift": drift,
+        "partialOnly": partial_only, "uncovered": uncovered,
+        "score":     score, "coverage": coverage,
+    }
+
+
+def render_executive_summary(findings_doc: dict, frameworks: list[str], *,
+                              tenant_display: str = "", top: int = 10) -> str:
+    severity_rank = { "critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4 }
+
+    per_fw = [_framework_coverage(fw, findings_doc) for fw in frameworks]
+    per_fw = [x for x in per_fw if x]
+
+    total_all     = sum(x["total"]       for x in per_fw)
+    covered_all   = sum(x["covered"]     for x in per_fw)
+    drift_all     = sum(x["drift"]       for x in per_fw)
+    partial_all   = sum(x["partialOnly"] for x in per_fw)
+    uncovered_all = sum(x["uncovered"]   for x in per_fw)
+    score_all     = round(((100 * covered_all) + (50 * partial_all)) / total_all, 1) if total_all else 0
+
+    fw_set = set(frameworks)
+
+    decorated = []
+    for f in findings_doc.get("findings", []):
+        framRefs = [fr for fr in (f.get("frameworkRefs") or []) if fr.get("framework") in fw_set]
+        if not framRefs: continue
+        decorated.append({
+            "finding":  f, "rank": severity_rank[f.get("severity", "info")],
+            "framRefs": framRefs, "framCount": len(framRefs),
+        })
+    decorated.sort(key=lambda d: (d["rank"], -d["framCount"], d["finding"].get("id", "")))
+    top_findings = decorated[:top]
+
+    drift_reg = []
+    for fw in per_fw:
+        for c in fw["coverage"]:
+            if c["status"] == "drift":
+                drift_reg.append({ "framework": fw["framework"], "label": fw["label"], "ref": c["ref"], "failing": c["failing"] })
+
+    uncovered_reg = []
+    for fw in per_fw:
+        for c in fw["coverage"]:
+            if c["status"] == "uncovered":
+                uncovered_reg.append({ "framework": fw["framework"], "label": fw["label"], "ref": c["ref"] })
+
+    tenant = tenant_display or findings_doc.get("tenantId") or "unknown"
+    runId  = findings_doc.get("runId") or "unknown"
+
+    out = []
+    push = out.append
+    push("# Compliance Executive Summary\n")
+    push(f"**Tenant:** {tenant}\n")
+    push(f"**Run id:** {runId}  ")
+    push(f"**Generated:** _deterministic-fixture_  ")
+    push(f"**Findings file:** findings.json\n")
+
+    push("## Status snapshot\n")
+    push("Score = (covered + 0.5 × partial-only) / total. Drift status is reported separately — drift > 0 is always priority-1 regardless of score.\n")
+    push("| Framework | Covered | Drift | Partial-only | Uncovered | Total | Score |")
+    push("|---|---|---|---|---|---|---|")
+    for fw in per_fw:
+        push(f"| {fw['label']} | {fw['covered']} | {fw['drift']} | {fw['partialOnly']} | {fw['uncovered']} | {fw['total']} | {fw['score']}% |")
+    push(f"| **All frameworks** | **{covered_all}** | **{drift_all}** | **{partial_all}** | **{uncovered_all}** | **{total_all}** | **{score_all}%** |\n")
+
+    push(f"## Top {top} findings\n")
+    if not top_findings:
+        push("_No findings tagged with the requested frameworks._\n")
+    else:
+        push("| # | Severity | Finding | Workload | Affects | Current → Desired |")
+        push("|---|---|---|---|---|---|")
+        for i, t in enumerate(top_findings, 1):
+            f = t["finding"]
+            affects = "<br>".join(f"{fr['framework']}:{fr['ref']}" for fr in t["framRefs"])
+            delta   = f"`{f.get('currentValue')}` → `{f.get('desiredValue')}`"
+            push(f"| {i} | {f.get('severity')} | {f.get('id')} | {f.get('workload')} | {affects} | {delta} |")
+        push("")
+
+    push("## Drift register — controls deployed but failing\n")
+    if not drift_reg:
+        push("_No drift detected. Tenant configuration matches the deployed baseline for every mapped framework reference._\n")
+    else:
+        push("| Framework | Reference | Failing controls |")
+        push("|---|---|---|")
+        for d in sorted(drift_reg, key=lambda x: (x["framework"], x["ref"])):
+            push(f"| {d['label']} | {d['ref']} | {'<br>'.join(d['failing'])} |")
+        push("")
+
+    push("## Uncovered register — no deployed control maps to this requirement\n")
+    if not uncovered_reg:
+        push("_Every mapped framework reference has at least one control in scope (primary or partial)._\n")
+    else:
+        push("| Framework | Reference |")
+        push("|---|---|")
+        for u in sorted(uncovered_reg, key=lambda x: (x["framework"], x["ref"])):
+            push(f"| {u['label']} | {u['ref']} |")
+        push("")
+
+    push("## Recommended next actions\n")
+    actions = []
+    if drift_all > 0:
+        s = "s" if drift_all > 1 else ""
+        actions.append(f"**Address drift first.** {drift_all} framework reference{s} currently fail their deployed controls — the tenant has the right intent but the wrong reality. Drift is the cheapest gap to close.")
+    if uncovered_all > 0:
+        s = "s" if uncovered_all > 1 else ""
+        actions.append(f"**Close uncovered gaps.** {uncovered_all} reference{s} have no mapped control in scope. Either extend the baseline or accept the deviation in writing.")
+    if partial_all > 0:
+        s = "s" if partial_all > 1 else ""
+        actions.append(f"**Promote partial coverage to primary** where a stronger control exists. {partial_all} reference{s} currently rely on partial controls only.")
+    if not actions:
+        actions.append("**Maintain posture.** No drift, no uncovered, no partial-only — the deployed baseline is meeting every mapped framework requirement. Schedule the next review and re-run quarterly.")
+    for a in actions:
+        push(f"- {a}")
+    push("")
+
+    push("---\n")
+    push("_Generated by `scripts/report/New-ExecutiveSummary.ps1`. Per-framework detail in the framework-scoped reports. The mapped scope is limited to controls in `skills/mapping/control-map/map.csv` — manual review still required for requirements outside the map._")
+    return "\n".join(out) + "\n"
 
 
 def render_framework_report(framework: str, findings_doc: dict, *, tenant_display: str = "") -> str:
@@ -729,6 +1017,8 @@ def main() -> int:
     actual   = run_diff(resolved, BUNDLE, RULES)
     ca_scan  = json.loads((BUNDLE / "conditional-access.json").read_text(encoding="utf-8"))
     ca_plan  = compute_ca_plan(resolved, ca_scan)
+    pv_scan  = json.loads((BUNDLE / "purview.json").read_text(encoding="utf-8"))
+    pv_plan  = compute_purview_plan(resolved, pv_scan)
 
     if args.print:
         print("=== findings ===")
@@ -740,12 +1030,18 @@ def main() -> int:
     if args.update:
         EXPECTED.write_text(normalise(actual) + "\n", encoding="utf-8")
         EXPECTED_CA_PLAN.write_text(normalise(ca_plan) + "\n", encoding="utf-8")
+        EXPECTED_PURVIEW_PLAN.write_text(normalise(pv_plan) + "\n", encoding="utf-8")
         print(f"updated {EXPECTED}")
         print(f"updated {EXPECTED_CA_PLAN}")
+        print(f"updated {EXPECTED_PURVIEW_PLAN}")
         for fw, p in EXPECTED_REPORTS.items():
             md = render_framework_report(fw, actual, tenant_display="Synthetic Test Tenant (fixture)")
             p.write_text(md, encoding="utf-8")
             print(f"updated {p}")
+        exec_md = render_executive_summary(actual, list(EXPECTED_REPORTS.keys()),
+                                           tenant_display="Synthetic Test Tenant (fixture)")
+        EXPECTED_EXEC_SUMMARY.write_text(exec_md, encoding="utf-8")
+        print(f"updated {EXPECTED_EXEC_SUMMARY}")
         return 0
 
     if not EXPECTED.exists() or not EXPECTED_CA_PLAN.exists():
@@ -776,6 +1072,17 @@ def main() -> int:
             for i in sorted(only_e): print(f"      {i}")
         rc = 1
 
+    if EXPECTED_PURVIEW_PLAN.exists():
+        ep = json.loads(EXPECTED_PURVIEW_PLAN.read_text(encoding="utf-8"))
+        if normalise(pv_plan) != normalise(ep):
+            print("=== DRIFT — purview plan vs expected ===")
+            print(f"actual.summary:   {pv_plan['summary']}")
+            print(f"expected.summary: {ep['summary']}")
+            rc = 1
+    else:
+        print(f"=== DRIFT — expected purview plan missing: {EXPECTED_PURVIEW_PLAN}")
+        rc = 1
+
     expected_plan = json.loads(EXPECTED_CA_PLAN.read_text(encoding="utf-8"))
     if normalise(ca_plan) != normalise(expected_plan):
         print("=== DRIFT — ca plan vs expected ===")
@@ -792,6 +1099,25 @@ def main() -> int:
             print("  - Missing in actual:")
             for i in sorted(only_e, key=lambda x: (x[0] or '', x[1] or '')): print(f"      {i}")
         rc = 1
+
+    # Executive summary
+    if not EXPECTED_EXEC_SUMMARY.exists():
+        print(f"=== DRIFT — expected executive summary missing: {EXPECTED_EXEC_SUMMARY}")
+        rc = 1
+    else:
+        actual_md   = render_executive_summary(actual, list(EXPECTED_REPORTS.keys()),
+                                               tenant_display="Synthetic Test Tenant (fixture)")
+        expected_md = EXPECTED_EXEC_SUMMARY.read_text(encoding="utf-8")
+        if actual_md != expected_md:
+            print(f"=== DRIFT — executive summary report")
+            a_lines = actual_md.splitlines(); e_lines = expected_md.splitlines()
+            for i, (a, e) in enumerate(zip(a_lines, e_lines)):
+                if a != e:
+                    print(f"   first divergence at line {i+1}:")
+                    print(f"     actual:   {a[:140]}")
+                    print(f"     expected: {e[:140]}")
+                    break
+            rc = 1
 
     # Per-framework reports
     for fw, p in EXPECTED_REPORTS.items():
@@ -817,8 +1143,8 @@ def main() -> int:
 
     if rc != 0: return rc
 
-    print(f"OK — findings ({actual['summary']['total']}) and ca plan ({ca_plan['summary']}) both match expected")
-    print(f"     framework reports: {', '.join(sorted(EXPECTED_REPORTS.keys()))} — all match")
+    print(f"OK — findings ({actual['summary']['total']}), ca plan ({ca_plan['summary']}), purview plan ({pv_plan['summary']}) all match expected")
+    print(f"     framework reports: {', '.join(sorted(EXPECTED_REPORTS.keys()))} + executive summary — all match")
     for k, v in actual["summary"].items():
         if k == "total": continue
         print(f"     findings.{k:9} {v}")
