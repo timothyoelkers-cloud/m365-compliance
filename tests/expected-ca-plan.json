@@ -11,30 +11,7 @@
   },
   "requiresApproval": false,
   "approvalRef": null,
-  "blockedBy": [
-    {
-      "rule": "conditions.users.nonempty",
-      "baselineId": "cis-l1-ca-003-admin-mfa-phishing-resistant"
-    },
-    {
-      "rule": "conditions.users.nonempty",
-      "baselineId": "cis-l1-ca-009-admin-sign-in-frequency"
-    },
-    {
-      "rule": "grantControls.nonempty",
-      "baselineId": "cis-l1-ca-009-admin-sign-in-frequency",
-      "detail": "Non-block policy must declare at least one grant control or authenticationStrength"
-    },
-    {
-      "rule": "grantControls.nonempty",
-      "baselineId": "cis-l2-ca-011-unmanaged-web-session-restrictions",
-      "detail": "Non-block policy must declare at least one grant control or authenticationStrength"
-    },
-    {
-      "rule": "conditions.users.nonempty",
-      "baselineId": "nis2-ca-031-cross-tenant-access-tight"
-    }
-  ],
+  "blockedBy": [],
   "actions": [
     {
       "baselineId": "cis-l1-ca-003-admin-mfa-phishing-resistant",

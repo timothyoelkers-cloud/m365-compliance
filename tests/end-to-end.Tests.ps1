@@ -32,6 +32,8 @@ BeforeAll {
     $script:CaExpected = Join-Path $Repo 'tests/expected-ca-plan.json'
     $script:PvApply    = Join-Path $Repo 'scripts/apply/Set-PurviewBaseline.ps1'
     $script:PvExpected = Join-Path $Repo 'tests/expected-purview-plan.json'
+    $script:Orch       = Join-Path $Repo 'scripts/orchestrate/Invoke-TenantApply.ps1'
+    $script:OrchExpected = Join-Path $Repo 'tests/expected-tenant-plan.json'
 
     $script:TenantId = '00000000-0000-0000-0000-aaaaaaaaaaaa'
     $script:Out      = Join-Path $env:TEMP "m365c-fixture-$(Get-Random)"
@@ -345,6 +347,63 @@ Describe 'Synthetic-tenant-001 end-to-end' {
                 -TenantId             $script:TenantId `
                 -OutputDir            $script:PvOutDir `
                 -Mode                 apply `
+                | Out-Null } | Should -Throw -ExpectedMessage '*ApprovalRef*'
+        }
+    }
+
+    Context 'Tenant orchestrator (Invoke-TenantApply.ps1)' {
+
+        BeforeAll {
+            $script:OrchOutDir = Join-Path $script:Out 'orchestrator'
+            New-Item -ItemType Directory -Path $script:OrchOutDir -Force | Out-Null
+        }
+
+        It 'runs in audit mode without throwing' {
+            { & $script:Orch `
+                -TenantConfigPath $script:Tenant `
+                -ScanBundlePath   $script:Bundle `
+                -OutputDir        (Join-Path $script:OrchOutDir 'audit') `
+                -Mode             audit `
+                -SkipReports `
+                | Out-Null } | Should -Not -Throw
+
+            (Test-Path (Join-Path $script:OrchOutDir 'audit/findings.json'))         | Should -BeTrue
+            (Test-Path (Join-Path $script:OrchOutDir 'audit/resolved-baseline.json')) | Should -BeTrue
+        }
+
+        It 'runs in plan mode and produces tenant-plan.json + per-workload plans' {
+            $result = & $script:Orch `
+                -TenantConfigPath $script:Tenant `
+                -ScanBundlePath   $script:Bundle `
+                -OutputDir        (Join-Path $script:OrchOutDir 'plan') `
+                -Mode             plan `
+                -SkipReports
+            $result.mode      | Should -Be 'plan'
+            $result.tenantId  | Should -Be $script:TenantId
+            (Test-Path $result.plan) | Should -BeTrue
+
+            (Test-Path (Join-Path $script:OrchOutDir 'plan/tenant-plan.json'))                                 | Should -BeTrue
+            (Test-Path (Join-Path $script:OrchOutDir 'plan/conditional-access/plan.json'))                     | Should -BeTrue
+            (Test-Path (Join-Path $script:OrchOutDir 'plan/purview/plan.json'))                                | Should -BeTrue
+        }
+
+        It 'aggregate plan summary matches expected (zero gates blocking, zero workload blocked)' {
+            $actual   = Get-Content -Raw (Join-Path $script:OrchOutDir 'plan/tenant-plan.json') | ConvertFrom-Json
+            $expected = Get-Content -Raw $script:OrchExpected | ConvertFrom-Json
+
+            $actual.overallSummary.workloadsPlanned | Should -Be $expected.overallSummary.workloadsPlanned
+            $actual.overallSummary.workloadsSkipped | Should -Be $expected.overallSummary.workloadsSkipped
+            $actual.overallSummary.blockedBy        | Should -Be $expected.overallSummary.blockedBy
+            $actual.gates.blockingCount              | Should -Be $expected.gates.blockingCount
+        }
+
+        It 'refuses apply-pilot mode without -ApprovalRef' {
+            { & $script:Orch `
+                -TenantConfigPath $script:Tenant `
+                -ScanBundlePath   $script:Bundle `
+                -OutputDir        (Join-Path $script:OrchOutDir 'apply') `
+                -Mode             apply-pilot `
+                -SkipReports `
                 | Out-Null } | Should -Throw -ExpectedMessage '*ApprovalRef*'
         }
     }

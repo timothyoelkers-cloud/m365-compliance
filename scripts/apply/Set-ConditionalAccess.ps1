@@ -287,11 +287,37 @@ function Test-Invariants {
             $b = $action.targetPolicy
             if (-not $b) { continue }
 
-            # Empty users / applications
-            if (-not $b.conditions.users      -or -not $b.conditions.users.include)        {
-                [void]$blockedBy.Add(@{ rule = 'conditions.users.nonempty';        baselineId = $action.baselineId })
+            # Users scope non-empty (any inclusion form counts — users, groups,
+            # roles, or guests/external)
+            $usersInclusionKeys = @('include','includeUsers','include_users',
+                                    'include_groups','includeGroups',
+                                    'include_roles','includeRoles',
+                                    'include_guests_or_external_users',
+                                    'includeGuestsOrExternalUsers')
+            $usersOk = $false
+            if ($b.conditions -and $b.conditions.users) {
+                foreach ($k in $usersInclusionKeys) {
+                    if ($b.conditions.users.PSObject.Properties.Name -contains $k -and $b.conditions.users.$k) { $usersOk = $true; break }
+                    if ($b.conditions.users -is [System.Collections.IDictionary] -and $b.conditions.users.ContainsKey($k) -and $b.conditions.users[$k]) { $usersOk = $true; break }
+                }
             }
-            if (-not $b.conditions.applications -or -not $b.conditions.applications.include) {
+            if (-not $usersOk) {
+                [void]$blockedBy.Add(@{ rule = 'conditions.users.nonempty'; baselineId = $action.baselineId })
+            }
+
+            # Applications scope non-empty (apps, user actions, or auth context refs all count)
+            $appsInclusionKeys = @('include','includeApplications','include_applications',
+                                   'include_user_actions','includeUserActions',
+                                   'include_authentication_context_class_references',
+                                   'includeAuthenticationContextClassReferences')
+            $appsOk = $false
+            if ($b.conditions -and $b.conditions.applications) {
+                foreach ($k in $appsInclusionKeys) {
+                    if ($b.conditions.applications.PSObject.Properties.Name -contains $k -and $b.conditions.applications.$k) { $appsOk = $true; break }
+                    if ($b.conditions.applications -is [System.Collections.IDictionary] -and $b.conditions.applications.ContainsKey($k) -and $b.conditions.applications[$k]) { $appsOk = $true; break }
+                }
+            }
+            if (-not $appsOk) {
                 [void]$blockedBy.Add(@{ rule = 'conditions.applications.nonempty'; baselineId = $action.baselineId })
             }
 
@@ -305,11 +331,18 @@ function Test-Invariants {
                 }
             }
 
-            # Non-block policies must have at least one grant control
-            if (-not $isBlock -and ($null -eq $b.grantControls -or `
-                ((-not $b.grantControls.builtInControls -or $b.grantControls.builtInControls.Count -eq 0) -and `
-                 -not $b.grantControls.authenticationStrength))) {
-                [void]$blockedBy.Add(@{ rule = 'grantControls.nonempty'; baselineId = $action.baselineId; detail = 'Non-block policy must declare at least one grant control or authenticationStrength' })
+            # Non-block policies must have at least one effect — grant
+            # controls, authenticationStrength, or sessionControls (a session-
+            # control-only policy is a valid CA shape: e.g. sign-in frequency
+            # / app-enforced restrictions on web sessions).
+            if (-not $isBlock) {
+                $hasBuilt    = ($b.grantControls -and $b.grantControls.builtInControls -and $b.grantControls.builtInControls.Count -gt 0)
+                $hasStrength = ($b.grantControls -and $b.grantControls.authenticationStrength)
+                $hasSession  = ($b.PSObject.Properties.Name -contains 'sessionControls' -and $b.sessionControls) -or `
+                               ($b -is [System.Collections.IDictionary] -and $b.ContainsKey('sessionControls') -and $b.sessionControls)
+                if (-not ($hasBuilt -or $hasStrength -or $hasSession)) {
+                    [void]$blockedBy.Add(@{ rule = 'grantControls.nonempty'; baselineId = $action.baselineId; detail = 'Non-block policy must declare at least one grant control, authenticationStrength, or sessionControls block' })
+                }
             }
 
             # Forbidden state transition: disabled -> enabled directly

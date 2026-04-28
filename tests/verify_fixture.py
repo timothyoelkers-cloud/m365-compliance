@@ -49,6 +49,7 @@ EXPECTED_REPORTS  = {
 }
 EXPECTED_EXEC_SUMMARY = TESTS / "expected-executive-summary.md"
 EXPECTED_PURVIEW_PLAN = TESTS / "expected-purview-plan.json"
+EXPECTED_TENANT_PLAN  = TESTS / "expected-tenant-plan.json"
 
 SEVERITY_ORDER = { "critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4 }
 
@@ -482,12 +483,25 @@ def compute_ca_plan(resolved: dict, ca_scan: dict, tenant_map: dict[str, str] | 
             })
             summary["create"] += 1
 
-        # Invariant: empty users / applications
+        # Invariant: users scope non-empty (any inclusion form counts —
+        # users, groups, roles, or guests/external).
         users = (b.get("conditions") or {}).get("users") or {}
-        if not (users.get("include") or users.get("includeUsers")):
+        users_inclusion_keys = ("include", "includeUsers", "include_users",
+                                "include_groups", "includeGroups",
+                                "include_roles",  "includeRoles",
+                                "include_guests_or_external_users",
+                                "includeGuestsOrExternalUsers")
+        if not any(users.get(k) for k in users_inclusion_keys):
             blocked_by.append({ "rule": "conditions.users.nonempty", "baselineId": b["id"] })
+
+        # Invariant: applications scope non-empty (apps, user actions, or
+        # authentication context references all count).
         apps = (b.get("conditions") or {}).get("applications") or {}
-        if not (apps.get("include") or apps.get("includeApplications") or apps.get("include_user_actions")):
+        apps_inclusion_keys = ("include", "includeApplications", "include_applications",
+                               "include_user_actions", "includeUserActions",
+                               "include_authentication_context_class_references",
+                               "includeAuthenticationContextClassReferences")
+        if not any(apps.get(k) for k in apps_inclusion_keys):
             blocked_by.append({ "rule": "conditions.applications.nonempty", "baselineId": b["id"] })
 
         # Block-policy break-glass exclusion
@@ -501,14 +515,18 @@ def compute_ca_plan(resolved: dict, ca_scan: dict, tenant_map: dict[str, str] | 
                     "detail": f"Block policy does not exclude {bg_group}",
                 })
 
-        # Non-block must have grantControls or authenticationStrength
+        # Non-block must have at least one effect — grant controls,
+        # authenticationStrength, or sessionControls (a session-control-only
+        # policy is a valid CA shape: e.g. sign-in frequency / app-enforced
+        # restrictions on web sessions).
         if not is_block:
-            has_built = bool(gc.get("builtInControls"))
+            has_built    = bool(gc.get("builtInControls"))
             has_strength = bool(gc.get("authenticationStrength"))
-            if not (has_built or has_strength):
+            has_session  = bool(b.get("sessionControls"))
+            if not (has_built or has_strength or has_session):
                 blocked_by.append({
                     "rule": "grantControls.nonempty", "baselineId": b["id"],
-                    "detail": "Non-block policy must declare at least one grant control or authenticationStrength",
+                    "detail": "Non-block policy must declare at least one grant control, authenticationStrength, or sessionControls block",
                 })
 
         # authenticationStrength references resolve
@@ -543,6 +561,101 @@ def compute_ca_plan(resolved: dict, ca_scan: dict, tenant_map: dict[str, str] | 
         "approvalRef":      None,
         "blockedBy":        blocked_by,
         "actions":          actions,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Tenant orchestrator (plan mode) — mirrors scripts/orchestrate/Invoke-TenantApply.ps1
+# Limited to plan/audit paths; apply mode is PowerShell-only (real writes).
+# ---------------------------------------------------------------------------
+
+def compute_tenant_gate_problems(tenant_doc: dict, manifest: dict, resolved: dict) -> list[dict]:
+    problems: list[dict] = []
+    tenant_id = tenant_doc.get("tenant", {}).get("id")
+
+    # Tenant identity consistency
+    if (manifest.get("tenant") or {}).get("tenantId") != tenant_id:
+        problems.append({
+            "gate":   "tenant.identity",
+            "detail": f"Scan bundle tenantId ({(manifest.get('tenant') or {}).get('tenantId')}) does not match tenant.yaml id ({tenant_id})",
+        })
+
+    # Break-glass posture
+    target_entra = ((resolved.get("target") or {}).get("entra") or {})
+    bg = target_entra.get("break_glass") or {}
+    if not bg.get("group_id"):
+        problems.append({
+            "gate":   "break-glass.declared",
+            "detail": "baseline.entra.break_glass.group_id is empty. Refusing to proceed without a documented break-glass posture.",
+        })
+
+    # Licence sufficiency (best-effort)
+    licensing = tenant_doc.get("licensing") or {}
+    tier  = licensing.get("tier")
+    addons = licensing.get("addons") or []
+    has_p2 = tier in ("E5", "EM_S_E5", "SPE_E5") or any(re.search(r"P2|E5", str(a)) for a in addons)
+    p2_required = False
+    for p in (target_entra.get("conditional_access_policies") or []):
+        cond = p.get("conditions") or {}
+        if "signInRiskLevels" in cond or "userRiskLevels" in cond:
+            p2_required = True; break
+    if p2_required and not has_p2:
+        problems.append({
+            "gate":     "licence.sufficiency",
+            "severity": "warning",
+            "detail":   "Baseline includes risk-based CA policies which require Entra ID P2; tenant.licensing does not declare P2/E5.",
+        })
+
+    return problems
+
+
+def compute_tenant_plan(tenant_yaml_path: pathlib.Path, bundle_dir: pathlib.Path,
+                         findings_doc: dict, ca_plan: dict, pv_plan: dict) -> dict:
+    tenant_doc = yaml.safe_load(tenant_yaml_path.read_text(encoding="utf-8"))
+    manifest   = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+    resolved   = resolve_baseline(tenant_yaml_path)
+
+    gates = compute_tenant_gate_problems(tenant_doc, manifest, resolved)
+    blocking_gates = [g for g in gates if g.get("severity") != "warning"]
+
+    workloads = [
+        {
+            "workload":    "conditional-access",
+            "status":      "planned",
+            "summary":     ca_plan["summary"],
+            "blockedBy":   ca_plan["blockedBy"],
+            "actionCount": len(ca_plan["actions"]),
+        },
+        {
+            "workload":    "purview",
+            "status":      "planned",
+            "summary":     pv_plan["summary"],
+            "blockedBy":   pv_plan["blockedBy"],
+            "actionCount": len(pv_plan["actions"]),
+        },
+    ]
+
+    blocked_total = sum(len(w.get("blockedBy") or []) for w in workloads)
+
+    return {
+        "schemaVersion":    "1.0.0",
+        "tenantId":         tenant_doc["tenant"]["id"],
+        "displayName":      tenant_doc["tenant"].get("display_name"),
+        "mode":             "plan",
+        "baselineProfiles": tenant_doc.get("profiles") or [],
+        "overallSummary": {
+            "findings":         findings_doc["summary"],
+            "workloadsPlanned": sum(1 for w in workloads if w["status"] == "planned"),
+            "workloadsSkipped": sum(1 for w in workloads if w["status"] != "planned"),
+            "blockedBy":        blocked_total,
+        },
+        "gates": {
+            "problems":      gates,
+            "blockingCount": len(blocking_gates),
+        },
+        "workloads":        workloads,
+        "requiresApproval": False,
+        "approvalRef":      None,
     }
 
 
@@ -1019,6 +1132,7 @@ def main() -> int:
     ca_plan  = compute_ca_plan(resolved, ca_scan)
     pv_scan  = json.loads((BUNDLE / "purview.json").read_text(encoding="utf-8"))
     pv_plan  = compute_purview_plan(resolved, pv_scan)
+    tenant_plan = compute_tenant_plan(FIXTURE / "tenant.yaml", BUNDLE, actual, ca_plan, pv_plan)
 
     if args.print:
         print("=== findings ===")
@@ -1031,9 +1145,11 @@ def main() -> int:
         EXPECTED.write_text(normalise(actual) + "\n", encoding="utf-8")
         EXPECTED_CA_PLAN.write_text(normalise(ca_plan) + "\n", encoding="utf-8")
         EXPECTED_PURVIEW_PLAN.write_text(normalise(pv_plan) + "\n", encoding="utf-8")
+        EXPECTED_TENANT_PLAN.write_text(normalise(tenant_plan) + "\n", encoding="utf-8")
         print(f"updated {EXPECTED}")
         print(f"updated {EXPECTED_CA_PLAN}")
         print(f"updated {EXPECTED_PURVIEW_PLAN}")
+        print(f"updated {EXPECTED_TENANT_PLAN}")
         for fw, p in EXPECTED_REPORTS.items():
             md = render_framework_report(fw, actual, tenant_display="Synthetic Test Tenant (fixture)")
             p.write_text(md, encoding="utf-8")
@@ -1081,6 +1197,17 @@ def main() -> int:
             rc = 1
     else:
         print(f"=== DRIFT — expected purview plan missing: {EXPECTED_PURVIEW_PLAN}")
+        rc = 1
+
+    if EXPECTED_TENANT_PLAN.exists():
+        et = json.loads(EXPECTED_TENANT_PLAN.read_text(encoding="utf-8"))
+        if normalise(tenant_plan) != normalise(et):
+            print("=== DRIFT — tenant plan vs expected ===")
+            print(f"actual.overallSummary:   {tenant_plan['overallSummary']}")
+            print(f"expected.overallSummary: {et['overallSummary']}")
+            rc = 1
+    else:
+        print(f"=== DRIFT — expected tenant plan missing: {EXPECTED_TENANT_PLAN}")
         rc = 1
 
     expected_plan = json.loads(EXPECTED_CA_PLAN.read_text(encoding="utf-8"))
@@ -1143,8 +1270,9 @@ def main() -> int:
 
     if rc != 0: return rc
 
-    print(f"OK — findings ({actual['summary']['total']}), ca plan ({ca_plan['summary']}), purview plan ({pv_plan['summary']}) all match expected")
+    print(f"OK — findings ({actual['summary']['total']}), ca plan, purview plan, tenant plan all match expected")
     print(f"     framework reports: {', '.join(sorted(EXPECTED_REPORTS.keys()))} + executive summary — all match")
+    print(f"     tenant plan: workloads={tenant_plan['overallSummary']['workloadsPlanned']} blockedBy={tenant_plan['overallSummary']['blockedBy']} gates={tenant_plan['gates']['blockingCount']}")
     for k, v in actual["summary"].items():
         if k == "total": continue
         print(f"     findings.{k:9} {v}")

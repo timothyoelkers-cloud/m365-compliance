@@ -25,6 +25,8 @@ scripts/
 ├── apply/                          Write — reconciles tenant to baseline (gated)
 │   ├── Set-ConditionalAccess.ps1   Conditional Access — full per-policy plan/apply/rollback
 │   └── Set-PurviewBaseline.ps1     Purview tenant-wide settings (UAL, retention, label/DLP gap detection)
+├── orchestrate/                    End-to-end tenant pipeline
+│   └── Invoke-TenantApply.ps1      Resolve baseline + scan diff + per-workload plan/apply + reports
 └── report/                         Customer / auditor-facing markdown reports
     ├── New-FrameworkReport.ps1     Framework-scoped audit-prep report (cis-m365, dora, nis2, hipaa)
     └── New-ExecutiveSummary.ps1    Multi-framework cover doc (status snapshot + top findings + drift register)
@@ -153,6 +155,56 @@ Output sections:
 The mapped scope is limited to controls in `skills/mapping/control-map/map.csv`. Requirements outside the map need manual review against the framework skill.
 
 Sample reports against the synthetic fixture: [tests/expected-cis-m365-report.md](../tests/expected-cis-m365-report.md), [tests/expected-dora-report.md](../tests/expected-dora-report.md), [tests/expected-nis2-report.md](../tests/expected-nis2-report.md), [tests/expected-hipaa-report.md](../tests/expected-hipaa-report.md).
+
+## Orchestration
+
+[Invoke-TenantApply.ps1](orchestrate/Invoke-TenantApply.ps1) ties the whole pipeline together for a single tenant — one entry point that resolves the baseline, runs the diff engine, dispatches each workload's apply primitive, generates the framework reports, and aggregates everything into a consolidated tenant plan.
+
+```powershell
+pwsh scripts/orchestrate/Invoke-TenantApply.ps1 `
+    -TenantConfigPath baselines/tenants/<id>/tenant.yaml `
+    -ScanBundlePath   evidence/<tenant>/<ts>/ `
+    -OutputDir        out/<tenant>/<ts>/ `
+    -Mode             plan
+```
+
+Modes:
+
+| Mode | Effect |
+|---|---|
+| `audit` | Resolve baseline + run diff + produce findings + reports. **Read-only.** No per-workload plans. |
+| `plan` (default) | Audit, plus runs every workload apply primitive in plan mode. Produces `tenant-plan.json` (consolidated). **Read-only.** |
+| `apply-pilot` | Plan, then apply each workload's plan to its pilot ring. Requires `-ApprovalRef`. Refuses if any workload's plan has `blockedBy`. |
+| `apply-broad` | Same as apply-pilot but broad scope. |
+| `rollback` | Apply against an alternate (prior) baseline. |
+
+Pre-flight gates (audit performs read-only ones; apply modes add destructive-change ones):
+
+1. **Tenant identity consistency** — scan `tenantId`, baseline `tenant.id`, and `-TenantId` all match.
+2. **Break-glass posture** — baseline declares a non-empty `entra.break_glass.group_id`.
+3. **Licence sufficiency** (best-effort warning) — baseline references P2 features but `tenant.licensing.tier` doesn't include P2/E5.
+4. **Workload plan blocked-by=0** (apply only) — every per-workload plan must show no safety blockers.
+
+The orchestrator is **forward-compatible**: when a new `Set-<Workload>.ps1` is added to `apply/`, register it in `$script:WorkloadApplyScripts` at the top of the orchestrator and it'll be planned and applied alongside the rest.
+
+Sample output structure:
+
+```text
+out/<tenant>/<ts>/
+├── tenant-plan.json              ← consolidated cross-workload plan
+├── resolved-baseline.json
+├── findings.json
+├── conditional-access/
+│   └── plan.json
+├── purview/
+│   └── plan.json
+└── reports/
+    ├── cis-m365.md
+    ├── dora.md
+    ├── nis2.md
+    ├── hipaa.md
+    └── executive-summary.md
+```
 
 ### Multi-framework executive summary
 

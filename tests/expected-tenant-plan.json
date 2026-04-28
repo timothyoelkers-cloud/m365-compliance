@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.0.0",
+  "tenantId": "00000000-0000-0000-0000-aaaaaaaaaaaa",
+  "displayName": "Synthetic Test Tenant (fixture)",
+  "mode": "plan",
+  "baselineProfiles": [
+    "cis-l1@~1.0",
+    "cis-l1-l2@~1.0",
+    "nis2-overlay@~1.0"
+  ],
+  "overallSummary": {
+    "findings": {
+      "total": 12,
+      "critical": 0,
+      "high": 4,
+      "medium": 6,
+      "low": 0,
+      "info": 2
+    },
+    "workloadsPlanned": 2,
+    "workloadsSkipped": 0,
+    "blockedBy": 0
+  },
+  "gates": {
+    "problems": [],
+    "blockingCount": 0
+  },
+  "workloads": [
+    {
+      "workload": "conditional-access",
+      "status": "planned",
+      "summary": {
+        "create": 12,
+        "patch": 0,
+        "unchanged": 1,
+        "remove": 0
+      },
+      "blockedBy": [],
+      "actionCount": 14
+    },
+    {
+      "workload": "purview",
+      "status": "planned",
+      "summary": {
+        "enable": 0,
+        "create": 3,
+        "extendRetention": 1,
+        "shortenRetention": 0,
+        "unchanged": 1
+      },
+      "blockedBy": [],
+      "actionCount": 5
+    }
+  ],
+  "requiresApproval": false,
+  "approvalRef": null
+}
